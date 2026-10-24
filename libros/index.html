@@ -9,7 +9,7 @@
 <button class="navbtn" data-page="ratings"><b>⭐</b><span><strong>Valorar libros</strong><small>Puntúa y recuerda tus lecturas</small></span></button>
 <button class="navbtn" data-page="calendar"><b>📅</b><span><strong>Calendario de lecturas</strong><small>Los libros leídos con el paso del tiempo</small></span></button>
 <button class="navbtn" data-page="pending"><b>📖</b><span><strong>Pendientes de leer</strong><small>Las próximas historias de la lista</small></span></button>
-<button class="navbtn" data-page="stats"><b>🏆</b><span><strong>El rincón de los números</strong><small>Curiosidades de nuestra biblioteca</small></span></button></nav></aside></div>
+<button class="navbtn" data-page="stats"><b>🏆</b><span><strong>El rincón de los números</strong><small>Curiosidades de nuestra biblioteca</small></span></button></nav><button class="navbtn switch-home" id="switchHome" type="button"><span class="nicon">🏠</span><span><b>Cambiar de aplicación</b><small>Volver al inicio de Hogar</small></span></button></aside></div>
 <main class="wrap">
 <section class="page active" id="search"><div class="hero"><div><h2>¿Qué buscamos hoy?</h2><p>Busca por título, autor o ISBN y encuentra el libro en un momento.</p></div><div class="count" id="bookCount">0 libros</div></div><div class="search"><input type="search" placeholder="🔎  Escribe un título, autor o ISBN…"><button>×</button></div><div class="card"><div>📚</div><h3>La biblioteca está preparada</h3><p>Todavía no hay libros guardados. Cuando sumemos el primero, aparecerá aquí.</p></div></section>
 <section class="page" id="add"><div class="hero"><div><h2>Sumar un libro</h2><p>Escanea su ISBN o completa los datos manualmente.</p></div></div><div class="card">➕<h3>Alta de libros</h3><p>Preparada para el siguiente paso.</p></div></section>
@@ -19,4 +19,4 @@
 <section class="page" id="calendar"><div class="hero"><div><h2>Calendario de lecturas</h2><p>Consulta qué libros se han leído y cuándo.</p></div></div><div class="card">📅<h3>Historial de lectura</h3></div></section>
 <section class="page" id="pending"><div class="hero"><div><h2>Pendientes de leer</h2><p>Organiza los libros que esperan su turno.</p></div></div><div class="card">📖<h3>Próximas lecturas</h3></div></section>
 <section class="page" id="stats"><div class="hero"><div><h2>El rincón de los números</h2><p>Una mirada alegre a las lecturas familiares.</p></div></div><div class="card">🏆<h3>Estadísticas</h3></div></section></main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="./supabase-config.js"></script><script src="./app.js"></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="./supabase-config.js"></script><script src="./app.js"></script><script>document.getElementById('switchHome')?.addEventListener('click',()=>location.href='../index.html');</script></body></html>
