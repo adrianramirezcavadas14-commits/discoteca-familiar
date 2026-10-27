@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#243047">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Hogar">
+<title>Hogar · Biblioteca</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/icon-192.png">
+<link rel="apple-touch-icon" href="../icons/icon-192.png">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<!-- Pantalla de carga común (Tom, Hermione, ovejas y la carga inicial) -->
+<div class="loading-screen open" id="loadingScreen" role="status" aria-live="polite" aria-busy="true">
+  <div class="loading-card">
+    <img class="loading-character" id="loadingCharacter" src="./organizando-libreria.gif" alt="La biblioteca se está ordenando">
+    <strong id="loadingTitle">Los libros vuelven volando a sus estantes…</strong>
+    <span id="loadingText">Consultando el catálogo de la familia</span>
+    <div class="loading-progress" id="loadingBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="loadingProgress"></div></div>
+    <small id="loadingPercent">0 %</small>
+    <div class="loading-actions" id="loadingActions" hidden>
+      <button type="button" id="loadingClose">Cerrar</button>
+      <button type="button" class="primary" id="loadingRetry">Reintentar</button>
+    </div>
+  </div>
+</div>
+
+<header class="top">
+  <button class="menu-btn" id="open" type="button" aria-label="Abrir menú"><span class="hamb" aria-hidden="true"><i></i><i></i><i></i></span></button>
+  <div class="brand">
+    <div class="logo" aria-hidden="true">📚</div>
+    <div><h1>Nuestra biblioteca familiar</h1><small>Los libros de casa, siempre localizados</small></div>
+  </div>
+  <div class="sync-status" id="syncStatus" title="Estado de sincronización" role="status" hidden></div>
+</header>
+
+<div class="drawer-bg" id="drawer">
+  <aside class="drawer" aria-label="Menú de la biblioteca">
+    <div class="drawer-head">
+      <h2>¿Qué hacemos?</h2>
+      <button class="close" id="close" type="button" aria-label="Cerrar menú"><span aria-hidden="true"></span></button>
+    </div>
+    <nav class="drawer-nav">
+      <button class="navbtn" type="button" data-page="add"><span class="nicon">➕</span><span><b>Sumar un libro</b><small>Una nueva historia para la familia</small></span></button>
+      <button class="navbtn active" type="button" data-page="search"><span class="nicon">🔎</span><span><b>Explorar la biblioteca</b><small>Encuentra cualquier libro en un momento</small></span></button>
+      <button class="navbtn" type="button" data-page="recommend"><span class="nicon">🎲</span><span><b>¿Qué leemos hoy?</b><small>Deja que la biblioteca te sorprenda</small></span></button>
+      <button class="navbtn" type="button" data-page="wishlist"><span class="nicon">✨</span><span><b>Destinos de papel</b><small>Ideas para comprar o regalar</small></span></button>
+      <button class="navbtn" type="button" data-page="ratings"><span class="nicon">⭐</span><span><b>Califica tu viaje</b><small>Puntúa y recuerda tus lecturas</small></span></button>
+      <button class="navbtn" type="button" data-page="calendar"><span class="nicon">📅</span><span><b>Mi ruta de lectura</b><small>Los libros leídos día a día</small></span></button>
+      <button class="navbtn" type="button" data-page="pending"><span class="nicon">🔖</span><span><b>Próximas paradas</b><small>Las próximas historias de la lista</small></span></button>
+      <button class="navbtn" type="button" data-page="stats"><span class="nicon">🏆</span><span><b>El rincón de los números</b><small>Curiosidades de nuestras lecturas</small></span></button>
+    </nav>
+    <button class="navbtn switch-app" id="switchHome" type="button"><span class="nicon">🏠</span><span><b>Cambiar de aplicación</b><small>Volver al inicio de Hogar</small></span></button>
+  </aside>
+</div>
+
+<main class="wrap">
+
+  <!-- ===================== EXPLORAR LA BIBLIOTECA ===================== -->
+  <section class="page active" id="search">
+    <div class="hero">
+      <div><h2>¿Qué buscamos hoy?</h2><p>Busca por título, autor, ISBN, editorial o género.</p></div>
+      <div class="count" id="bookCount">0 libros</div>
+    </div>
+    <div class="search search-wrap">
+      <input id="q" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="🔎  Escribe un título, autor o ISBN…" aria-label="Buscar en la biblioteca">
+      <button id="clearSearch" class="clear-search" type="button" aria-label="Limpiar búsqueda y filtros" title="Limpiar búsqueda y filtros" disabled><span aria-hidden="true"></span></button>
+    </div>
+    <div class="quick-filters" id="quickFilters" aria-label="Filtros rápidos">
+      <div class="filter-group" data-filter-group="owner" role="group" aria-label="Persona"></div>
+      <span class="filter-sep" aria-hidden="true">|</span>
+      <div class="filter-group" data-filter-group="location" role="group" aria-label="Ubicación"></div>
+    </div>
+    <div class="card table-card">
+      <table class="books-table">
+        <thead><tr><th class="c-cover">Portada</th><th>Título</th><th>Autor</th><th>Género</th><th class="c-num">Páginas</th><th>Formato</th><th>Propietario</th><th>Ubicación</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="empty" class="nodata" hidden>No encontramos ningún libro.</div>
+      <nav class="pager" id="pager" aria-label="Páginas de la biblioteca"></nav>
+    </div>
+  </section>
+
+  <!-- ===================== SUMAR UN LIBRO ===================== -->
+  <section class="page" id="add">
+    <div class="hero"><div><h2 id="formTitle">Sumar un libro</h2><p id="formSubtitle">Escanea su ISBN, búscalo por título o completa los datos a mano.</p></div></div>
+    <div class="entry-actions" id="entryActions">
+      <button type="button" class="entry-mode primary" id="scanIsbn">📷 Escanear código de barras</button>
+      <button type="button" class="entry-mode yellow" id="openTitleSearch">🔎 Buscar por título y autor</button>
+      <button type="button" class="entry-mode soft" id="manualEntry">✍️ Introducir a mano</button>
+    </div>
+    <form class="book-form" id="bookForm" novalidate>
+      <div class="form-grid">
+        <label class="span2"><span>Título <em>*</em></span><input id="fTitle" autocomplete="off" required></label>
+        <label class="span2">Subtítulo<input id="fSubtitle" autocomplete="off"></label>
+        <div class="field span2"><span class="field-label" id="fAuthorsLabel">Autor o autores <em>*</em></span><div class="chip-input" id="fAuthors" data-placeholder="Escribe un nombre y pulsa Intro" aria-labelledby="fAuthorsLabel"></div></div>
+        <label class="span2">Editorial<input id="fPublisher" autocomplete="off"></label>
+        <label>ISBN-13<input id="fIsbn13" inputmode="numeric" autocomplete="off" maxlength="17"><button type="button" class="mini-action" id="lookupIsbn">Buscar ISBN</button></label>
+        <label>ISBN-10<input id="fIsbn10" autocomplete="off" maxlength="13"></label>
+        <label>Año de publicación<input id="fYear" inputmode="numeric" autocomplete="off" maxlength="4"></label>
+        <label>Edición<input id="fEdition" autocomplete="off" placeholder="1.ª edición, bolsillo…"></label>
+        <div class="field span2"><span class="field-label" id="fGenresLabel">Género <small>(el primero es el principal)</small></span><div class="chip-input" id="fGenres" data-placeholder="Fantasía, novela…" aria-labelledby="fGenresLabel"></div></div>
+        <label>Páginas<input id="fPages" inputmode="numeric" autocomplete="off" maxlength="5"></label>
+        <label>Idioma<input id="fLanguage" autocomplete="off" placeholder="Español"></label>
+      </div>
+
+      <section class="cover-editor">
+        <h3>Portada</h3>
+        <div class="cover-work">
+          <div class="cover-preview empty" id="coverPreview"><span>Sin portada</span></div>
+          <div class="cover-side">
+            <div id="coverChoices" class="cover-choices"></div>
+            <div class="cover-buttons">
+              <label class="cover-btn">📸 Hacer foto<input id="coverCamera" type="file" accept="image/*" capture="environment" hidden></label>
+              <label class="cover-btn">🖼️ Elegir imagen<input id="coverFile" type="file" accept="image/*" hidden></label>
+              <button type="button" class="cover-btn google" id="googleCover">🔎 Buscar en Google</button>
+              <button type="button" class="cover-btn" id="removeCover">Quitar portada</button>
+            </div>
+            <label class="url-label">O pega la dirección de una imagen<input id="fCoverUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://…"></label>
+            <button type="button" class="cover-btn paste" id="pasteCover" hidden>📋 Pegar la dirección copiada</button>
+            <p class="cover-help" id="coverHelp">Si la búsqueda no trae portada, puedes hacerle una foto al libro.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="entry-filters">
+        <h3>¿De quién es, dónde está y qué formato tiene?</h3>
+        <p>Puedes marcar varias personas. La ubicación y el formato son únicos.</p>
+        <div class="entry-filter-row">
+          <div class="entry-group multi" data-entry-group="owners" aria-label="Propietarios"></div>
+          <div class="entry-group single" data-entry-group="location" aria-label="Ubicación"></div>
+          <div class="entry-group single" data-entry-group="format" aria-label="Formato físico"></div>
+        </div>
+      </section>
+
+      <label class="notes-label"><span>Notas <small>(opcional)</small></span><textarea id="fNotes" rows="3" placeholder="Dedicatoria, préstamos, estado del ejemplar…"></textarea></label>
+      <div class="form-error" id="formError" role="alert"></div>
+      <div class="form-actions">
+        <button type="button" id="cancelEdit">Cancelar</button>
+        <button type="submit" class="save-book" id="saveBook">Guardar libro</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ===================== ¿QUÉ LEEMOS HOY? ===================== -->
+  <section class="page" id="recommend">
+    <div class="hero"><div><h2>¿Qué leemos hoy?</h2><p>Elige tus preferencias y deja que las ovejas encuentren un libro de casa.</p></div></div>
+    <div class="recommend-card">
+      <section class="recommend-block">
+        <h3>1. Géneros</h3>
+        <p>Selecciona uno o varios géneros de los libros guardados.</p>
+        <div class="recommend-genres" id="recommendGenres"></div>
+      </section>
+      <div class="recommend-selects">
+        <label><span>2. ¿Para quién?</span><select id="recommendOwner"><option value="">Elige una persona</option></select></label>
+        <label><span>3. ¿Dónde estás?</span><select id="recommendLocation"><option value="">Elige una ubicación</option></select></label>
+      </div>
+      <div class="recommend-error" id="recommendError" role="alert"></div>
+      <button type="button" class="recommend-go" id="recommendGo"><span aria-hidden="true">🐑</span> Que las ovejas decidan</button>
+    </div>
+  </section>
+
+  <!-- ===================== DESTINOS DE PAPEL ===================== -->
+  <section class="page" id="wishlist">
+    <div class="hero"><div><h2>Destinos de papel</h2><p>Los libros que cada uno sueña con leer, para acertar con el próximo regalo.</p></div></div>
+    <div class="person-grid" id="wishlistGrid"></div>
+  </section>
+
+  <!-- ===================== CALIFICA TU VIAJE ===================== -->
+  <section class="page" id="ratings">
+    <div class="hero"><div><h2>Califica tu viaje</h2><p>Puntúa los libros terminados de 0 a 5 estrellas, con medias estrellas.</p></div></div>
+    <div class="rating-card" id="ratingsBody"></div>
+  </section>
+
+  <!-- ===================== MI RUTA DE LECTURA ===================== -->
+  <section class="page" id="calendar">
+    <div class="hero"><div><h2>Mi ruta de lectura</h2><p>Pulsa un día para apuntar por qué página vas.</p></div></div>
+    <div class="person-tabs" id="calendarPeople" role="group" aria-label="Persona del calendario"></div>
+    <div class="calendar-card">
+      <div class="cal-head">
+        <button type="button" class="cal-nav" id="calPrev" aria-label="Mes anterior">‹</button>
+        <div class="cal-title"><strong id="calTitle"></strong><button type="button" class="cal-today" id="calToday">Hoy</button></div>
+        <button type="button" class="cal-nav" id="calNext" aria-label="Mes siguiente">›</button>
+      </div>
+      <div class="cal-weekdays" aria-hidden="true"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
+      <div class="cal-grid" id="calGrid"></div>
+      <div class="cal-legend"><span><i class="flag start">★</i> Empieza</span><span><i class="flag end">★</i> Termina</span></div>
+    </div>
+  </section>
+
+  <!-- ===================== PRÓXIMAS PARADAS ===================== -->
+  <section class="page" id="pending">
+    <div class="hero"><div><h2>Próximas paradas</h2><p>Los libros de casa que esperan su turno.</p></div></div>
+    <div class="person-grid" id="pendingGrid"></div>
+  </section>
+
+  <!-- ===================== EL RINCÓN DE LOS NÚMEROS ===================== -->
+  <section class="page" id="stats">
+    <div class="hero"><div><h2>El rincón de los números</h2><p>Una mirada alegre a los libros y lecturas de cada persona.</p></div></div>
+    <div class="person-tabs" id="statsPeople" role="group" aria-label="Persona de las estadísticas"></div>
+    <div class="stats-body" id="statsBody"></div>
+  </section>
+</main>
+
+<!-- ===================== FICHA DEL LIBRO ===================== -->
+<div class="modal" id="bookModal" role="dialog" aria-modal="true" aria-labelledby="bmTitle">
+  <div class="modalbox book-detail">
+    <button class="x" type="button" id="bookModalClose" aria-label="Cerrar"><span aria-hidden="true"></span></button>
+    <div class="detail-cover" id="bmCover"></div>
+    <div class="mi">
+      <span class="pill" id="bmFormat"></span>
+      <h2 id="bmTitle"></h2>
+      <p class="bm-subtitle" id="bmSubtitle"></p>
+      <div class="artist-actions">
+        <p id="bmAuthors"></p>
+        <div class="detail-actions">
+          <button class="ico edit" type="button" id="bmEdit" aria-label="Editar" title="Editar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></button>
+          <button class="ico del" type="button" id="bmDelete" aria-label="Eliminar" title="Eliminar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14M10 10v6m4-6v6"/></svg></button>
+          <button class="ico calbtn" type="button" id="bmCalendar" aria-label="Apuntar en Mi ruta de lectura" title="Apuntar en Mi ruta de lectura">📅</button>
+          <button class="ico rate" type="button" id="bmRate" aria-label="Valorar" title="Valorar"><svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5L2.6 9.4l6.5-.9z" fill="#f5b400" stroke="#d99a00" stroke-width="1.2" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+      <div class="meta" id="bmMeta"></div>
+      <section class="detail-ratings">
+        <h3>Valoraciones de la familia</h3>
+        <div id="bmRatings"></div>
+      </section>
+      <section class="detail-journeys" id="bmJourneysWrap" hidden>
+        <h3>Viajes de lectura</h3>
+        <div id="bmJourneys"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ESCÁNER ISBN ===================== -->
+<div class="scan-modal" id="scanModal" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+  <div class="scan-box">
+    <button type="button" class="scan-close" id="scanClose">Cerrar</button>
+    <h2 id="scanTitle">Escanear el ISBN</h2>
+    <div class="scan-view" id="scanView">
+      <video id="scanVideo" playsinline muted></video>
+      <div class="scan-guide" aria-hidden="true"></div>
+      <div class="focus-ring" id="focusRing" aria-hidden="true"></div>
+    </div>
+    <p class="extra-camera-tip">Toca la imagen para intentar enfocar.</p>
+    <div class="scan-actions">
+      <button type="button" id="scanFocus">🎯 Enfocar</button>
+      <label class="photo-button">📸 Hacer foto<input id="scanPhoto" type="file" accept="image/*" capture="environment" hidden></label>
+      <label class="gallery-button">🖼️ Elegir foto<input id="scanGallery" type="file" accept="image/*" hidden></label>
+    </div>
+    <p id="scanStatus">Apunta la cámara al código de barras de la contraportada.</p>
+    <p class="secure-note">La lectura es automática. Mantén el código dentro del rectángulo hasta que se detecte.</p>
+  </div>
+</div>
+
+<!-- ===================== BUSCAR POR TÍTULO Y AUTOR ===================== -->
+<div class="scan-modal" id="searchModal" role="dialog" aria-modal="true" aria-labelledby="searchModalTitle">
+  <div class="edition-box">
+    <button type="button" class="scan-close" id="searchModalClose">Cerrar</button>
+    <h2 id="searchModalTitle">Buscar un libro</h2>
+    <p id="searchModalHint">Busca en Open Library y Google Books.</p>
+    <form class="title-search" id="titleSearchForm" novalidate>
+      <label><span>Título <em>*</em></span><input id="tsTitle" type="text" autocomplete="off" enterkeyhint="search"></label>
+      <label><span>Autor <small>(opcional)</small></span><input id="tsAuthor" type="text" autocomplete="off" enterkeyhint="search"></label>
+      <button type="submit" class="disc-search-button" id="tsGo">Buscar coincidencias</button>
+    </form>
+    <div class="search-error" id="tsError" role="alert"></div>
+  </div>
+</div>
+
+<!-- ===================== RESULTADOS / EDICIONES ===================== -->
+<div class="scan-modal" id="editionModal" role="dialog" aria-modal="true" aria-labelledby="editionTitle">
+  <div class="edition-box">
+    <button type="button" class="scan-close" id="editionClose">Cerrar</button>
+    <h2 id="editionTitle">Elige la edición correcta</h2>
+    <p id="editionHint">Puede haber varias ediciones del mismo libro. Comprueba el ISBN, la editorial y el año.</p>
+    <div id="editionBack" hidden><button type="button" class="link-btn" id="editionBackBtn">‹ Volver a los resultados</button></div>
+    <div id="editionResults" class="edition-results"></div>
+    <div class="edition-footer"><button type="button" class="mini-action" id="editionManual">No está: lo completo a mano</button></div>
+  </div>
+</div>
+
+<!-- ===================== ELEGIR UN LIBRO DE LA BIBLIOTECA ===================== -->
+<div class="scan-modal" id="pickModal" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
+  <div class="edition-box">
+    <button type="button" class="scan-close" id="pickClose">Cerrar</button>
+    <h2 id="pickTitle">Elegir un libro de casa</h2>
+    <p id="pickHint">Busca por título o autor dentro de la biblioteca familiar.</p>
+    <input class="pick-input" id="pickQuery" type="text" autocomplete="off" placeholder="🔎  Título o autor…" aria-label="Buscar en la biblioteca familiar">
+    <div class="pick-results" id="pickResults"></div>
+  </div>
+</div>
+
+<!-- ===================== DÍA DEL CALENDARIO ===================== -->
+<div class="scan-modal day-modal" id="dayModal" role="dialog" aria-modal="true" aria-labelledby="dayTitle">
+  <div class="edition-box day-box">
+    <button type="button" class="scan-close" id="dayClose">Cerrar</button>
+    <h2 id="dayTitle"></h2>
+    <p class="day-person" id="dayPerson"></p>
+    <div class="day-records" id="dayRecords"></div>
+    <div class="day-choose" id="dayChoose">
+      <button type="button" class="library-btn" id="dayGoLibrary">📚 Buscar otro libro en la biblioteca</button>
+      <p class="day-tip">Abre el libro en la biblioteca y pulsa <b>📅</b> en su ficha: eliges quién lo lee y el día en que empieza.</p>
+      <h3>O busca un libro que no está en casa</h3>
+      <p class="day-tip day-tip-top">De la biblioteca, prestado o digital. Se apunta en tu ruta sin añadirlo a la biblioteca de casa.</p>
+      <form class="day-ext" id="dayExtForm" novalidate>
+        <input id="dayExtTitle" type="text" autocomplete="off" enterkeyhint="search" placeholder="Título *" aria-label="Título del libro">
+        <input id="dayExtAuthor" type="text" autocomplete="off" enterkeyhint="search" placeholder="Autor (opcional)" aria-label="Autor del libro">
+        <button type="submit" class="disc-search-button">🔎 Buscar</button>
+      </form>
+      <div class="search-error" id="dayExtError" role="alert"></div>
+      <button type="button" class="mini-action" id="dayExtManual" hidden>Apuntar sin más datos</button>
+      <h3>O seguir con el que estabas leyendo</h3>
+      <div class="pick-results compact" id="dayInProgress"></div>
+    </div>
+    <form class="day-form" id="dayForm" hidden novalidate>
+      <div class="day-book" id="dayBook"></div>
+      <div class="day-fields">
+        <label>Página actual<input id="dPage" type="number" inputmode="numeric" min="0" step="1" autocomplete="off"></label>
+        <div class="day-total"><span id="dTotal"></span><small id="dLast"></small></div>
+      </div>
+      <div class="progress-line" aria-hidden="true"><div id="dProgress"></div></div>
+      <label class="check-row"><input type="checkbox" id="dFinished"> <span>📗 Libro terminado</span></label>
+      <label><span>Notas <small>(opcional)</small></span><textarea id="dNotes" rows="2"></textarea></label>
+      <div class="form-error" id="dError" role="alert"></div>
+      <div class="day-actions">
+        <button type="button" id="dBack">‹ Elegir otro</button>
+        <button type="submit" class="save-book" id="dSave">Guardar lectura</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== DESEO (DETALLE) ===================== -->
+<div class="modal" id="wishModal" role="dialog" aria-modal="true" aria-labelledby="wmTitle">
+  <div class="modalbox book-detail">
+    <button class="x" type="button" id="wishModalClose" aria-label="Cerrar"><span aria-hidden="true"></span></button>
+    <div class="detail-cover" id="wmCover"></div>
+    <div class="mi">
+      <span class="pill wish-pill" id="wmPerson"></span>
+      <h2 id="wmTitle"></h2>
+      <div class="artist-actions">
+        <p id="wmAuthors"></p>
+        <div class="detail-actions">
+          <button type="button" class="wishlist-obtain" id="wmObtain" aria-label="Ya lo tenemos: añadir a la biblioteca" title="Ya lo tenemos: añadir a la biblioteca">📥</button>
+          <button type="button" class="wishlist-remove" id="wmRemove" aria-label="Eliminar deseo" title="Eliminar deseo">🗑</button>
+        </div>
+      </div>
+      <div class="meta" id="wmMeta"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== RESULTADO DE ¿QUÉ LEEMOS HOY? ===================== -->
+<div class="recommend-result" id="recommendResult" role="dialog" aria-modal="true" aria-labelledby="rrTitle">
+  <div class="recommend-result-card">
+    <button type="button" class="recommend-close" id="recommendClose" aria-label="Cerrar"><span aria-hidden="true"></span></button>
+    <div class="recommend-cover-wrap" id="rrCover"></div>
+    <h2 id="rrTitle"></h2>
+    <p id="rrAuthor"></p>
+    <div class="rr-meta" id="rrMeta"></div>
+    <div class="rr-actions">
+      <button type="button" id="rrOpen">Ver ficha</button>
+      <button type="button" class="primary" id="rrAgain">🎲 Volver a sortear</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== OTROS AÑOS ===================== -->
+<div class="scan-modal" id="yearsModal" role="dialog" aria-modal="true" aria-labelledby="yearsTitle">
+  <div class="edition-box small-box">
+    <button type="button" class="scan-close" id="yearsClose">Cerrar</button>
+    <h2 id="yearsTitle">Otros años</h2>
+    <div class="years-list" id="yearsList"></div>
+  </div>
+</div>
+
+<!-- ===================== LISTA DE LIBROS (valoraciones del rincón de los números) ===================== -->
+<div class="scan-modal" id="listModal" role="dialog" aria-modal="true" aria-labelledby="listTitle">
+  <div class="edition-box">
+    <button type="button" class="scan-close" id="listClose">Cerrar</button>
+    <h2 id="listTitle"></h2>
+    <div class="pick-results" id="listResults"></div>
+  </div>
+</div>
+
+<!-- ===================== DIÁLOGO GENÉRICO ===================== -->
+<div class="scan-modal dialog-modal" id="dialogModal" role="alertdialog" aria-modal="true" aria-labelledby="dlgTitle" aria-describedby="dlgMessage">
+  <div class="edition-box dialog-box">
+    <h2 id="dlgTitle"></h2>
+    <div id="dlgMessage"></div>
+    <input id="dlgInput" hidden autocomplete="off">
+    <div class="dialog-actions" id="dlgActions"></div>
+  </div>
+</div>
+
+<!-- Paleta de colores de cada persona (se guarda solo en este dispositivo) -->
+<div class="color-palette" id="colorPalette" role="dialog" aria-label="Elegir color" hidden></div>
+
+<!-- Guía para elegir persona y día desde la ficha (resto de la pantalla atenuado) -->
+<div class="spot-dim" id="spotDim" hidden></div>
+<div class="spot-hint" id="spotHint" role="status" aria-live="polite" hidden><span id="spotText"></span><button type="button" id="spotCancel">Cancelar</button></div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Supabase y el lector de códigos se cargan desde app.js (con CDN alternativo y tiempo máximo) para que la pantalla de carga nunca se quede en 0 %. -->
+<script defer src="./supabase-config.js"></script>
+<script defer src="./app.js"></script>
+<script>
+  // Red de seguridad: si app.js no llega a arrancar (sin cobertura), se ofrece recargar en vez de quedarse en 0 %.
+  setTimeout(function () {
+    if (window.__bibliotecaArrancada) return;
+    var t = document.getElementById('loadingText'), a = document.getElementById('loadingActions'), r = document.getElementById('loadingRetry'), c = document.getElementById('loadingClose');
+    document.getElementById('loadingTitle').textContent = 'La biblioteca está tardando en abrir';
+    t.textContent = 'Parece que la conexión es lenta. Puedes reintentar o volver al inicio de Hogar.';
+    a.hidden = false;
+    r.onclick = function () { location.reload(); };
+    c.textContent = 'Volver a Hogar';
+    c.onclick = function () { location.href = '../index.html'; };
+  }, 20000);
+</script>
+</body>
+</html>
