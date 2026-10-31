@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Carrito con productos">
+  <rect width="64" height="64" rx="16" fill="#0f8a52"/>
+  <path d="M34 13h8v12h-8z" fill="#ffd166" stroke="#c79a2b" stroke-width="1.2"/>
+  <rect x="35.5" y="10" width="5" height="4" rx="1.2" fill="#ff786b"/>
+  <circle cx="27" cy="21" r="6" fill="#ff786b"/>
+  <path d="M27 15c1-3 3-4 5-4" stroke="#2f6b3c" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M44 18c5 0 7 3 7 7H41c0-4 0-7 3-7z" fill="#f6c26b" stroke="#c47f22" stroke-width="1.2"/>
+  <path d="M8 22h6l5 20h28l5-15H17" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M19 27h32l-4 11H22z" fill="#ffffff2e"/>
+  <circle cx="24" cy="49" r="4" fill="#fff"/>
+  <circle cx="43" cy="49" r="4" fill="#fff"/>
+</svg>
