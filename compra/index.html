@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#243047">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Hogar">
+<meta name="description" content="Nuestra despensa familiar: la lista y la ruta de la compra semanal en nuestro supermercado.">
+<title>Hogar · Despensa</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="./img/icono-despensa.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../icons/icon-192.png">
+<link rel="stylesheet" href="./styles.css?v=1.0">
+</head>
+<body>
+
+<!-- Pantalla de carga común (coyote al entrar, carro al guardar, osos al terminar la compra) -->
+<div class="loading-screen open" id="loadingScreen" role="status" aria-live="polite" aria-busy="true">
+  <div class="loading-card">
+    <img class="loading-character" id="loadingCharacter" src="./coyote.gif" alt="El coyote vigila con prismáticos si hay novedades en el súper">
+    <strong id="loadingTitle">Abriendo la despensa…</strong>
+    <span id="loadingText">Preparando la lista de la familia</span>
+    <div class="loading-progress" id="loadingBar" role="progressbar" aria-label="Progreso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="loadingProgress"></div></div>
+    <small id="loadingPercent">0 %</small>
+    <small class="loading-net" id="loadingNet"></small>
+    <button type="button" class="loading-continue" id="loadingContinue" hidden>Seguir mientras tanto</button>
+    <div class="loading-actions" id="loadingActions" hidden>
+      <button type="button" id="loadingClose">Cerrar</button>
+      <button type="button" class="primary" id="loadingRetry">Reintentar</button>
+    </div>
+  </div>
+</div>
+
+<a class="skip-link" href="#main">Saltar al contenido</a>
+
+<header class="top">
+  <button class="menu-btn" id="open" type="button" aria-label="Abrir menú" aria-controls="drawer" aria-expanded="false"><span class="hamb" aria-hidden="true"><i></i><i></i><i></i></span></button>
+  <div class="brand">
+    <div class="logo" aria-hidden="true"><img src="./img/icono-despensa.svg" alt="" width="30" height="30"></div>
+    <div><h1>Nuestra despensa familiar</h1><small>La compra de la semana, zona a zona</small></div>
+  </div>
+  <button type="button" class="sync-pill" id="syncPill" hidden></button>
+  <div class="sync-status" id="syncStatus" title="Estado de la conexión" role="status" hidden></div>
+</header>
+
+<div class="drawer-bg" id="drawer">
+  <aside class="drawer" aria-label="Menú de la despensa">
+    <div class="drawer-head">
+      <div><h2>¿Qué hacemos?</h2><small class="app-version" id="appVersion"></small></div>
+      <button class="close" id="close" type="button" aria-label="Cerrar menú"><span aria-hidden="true"></span></button>
+    </div>
+    <nav class="drawer-nav">
+      <a class="navbtn" href="#inicio" data-page="inicio"><span class="nicon" aria-hidden="true">🏠</span><span><b>La despensa de un vistazo</b><small>Inicio: la semana en un momento</small></span></a>
+      <a class="navbtn" href="#mapa" data-page="mapa"><span class="nicon" aria-hidden="true">🗺️</span><span><b>El mapa del súper</b><small>Zonas y dónde está cada producto</small></span></a>
+      <a class="navbtn" href="#lista" data-page="lista"><span class="nicon" aria-hidden="true">📝</span><span><b>Apunta lo que falta</b><small>Preparar la lista de la compra</small></span></a>
+      <a class="navbtn" href="#compra" data-page="compra"><span class="nicon" aria-hidden="true">🛒</span><span><b>¡A por la compra!</b><small>Hacer la compra con la lista</small></span></a>
+      <a class="navbtn" href="#tickets" data-page="tickets"><span class="nicon" aria-hidden="true">🧾</span><span><b>Tickets por saldar</b><small>Tickets pendientes de pago</small></span></a>
+      <a class="navbtn" href="#numeros" data-page="numeros"><span class="nicon" aria-hidden="true">🏆</span><span><b>El rincón de los números</b><small>Tiempos y curiosidades de la compra</small></span></a>
+      <a class="navbtn" href="#novedades" data-page="novedades"><span class="nicon" aria-hidden="true">✨</span><span><b>Lo nuevo del súper</b><small>Novedades, precios y cambios</small><i class="nav-badge" id="navBadgeNews" hidden></i></span></a>
+      <a class="navbtn" href="#ajustes" data-page="ajustes"><span class="nicon" aria-hidden="true">⚙️</span><span><b>Los ajustes</b><small>Clave, catálogo, zonas y datos</small></span></a>
+    </nav>
+    <button class="navbtn switch-app" id="switchHome" type="button"><span class="nicon" aria-hidden="true">🏠</span><span><b>Cambiar de aplicación</b><small>Volver al inicio de Hogar</small></span></button>
+  </aside>
+</div>
+
+<main class="wrap" id="main" tabindex="-1">
+  <section class="page" id="page-inicio" aria-labelledby="h-inicio"></section>
+  <section class="page" id="page-mapa" aria-labelledby="h-mapa"></section>
+  <section class="page" id="page-lista" aria-labelledby="h-lista"></section>
+  <section class="page" id="page-compra" aria-labelledby="h-compra"></section>
+  <section class="page" id="page-tickets" aria-labelledby="h-tickets"></section>
+  <section class="page" id="page-numeros" aria-labelledby="h-numeros"></section>
+  <section class="page" id="page-novedades" aria-labelledby="h-novedades"></section>
+  <section class="page" id="page-ajustes" aria-labelledby="h-ajustes"></section>
+</main>
+
+<!-- Ficha de producto (ampliación) -->
+<div class="modal" id="productModal" role="dialog" aria-modal="true" aria-labelledby="pmTitle">
+  <div class="modalbox product-detail">
+    <button class="x" type="button" data-close aria-label="Cerrar"><span aria-hidden="true"></span></button>
+    <div id="pmBody"></div>
+  </div>
+</div>
+
+<!-- Panel genérico (resúmenes, revisiones, formularios) -->
+<div class="scan-modal" id="panelModal" role="dialog" aria-modal="true" aria-labelledby="panelTitle">
+  <div class="edition-box panel-box">
+    <button type="button" class="scan-close" data-close>Cerrar</button>
+    <h2 id="panelTitle"></h2>
+    <div id="panelBody"></div>
+  </div>
+</div>
+
+<!-- Diálogo genérico -->
+<div class="scan-modal dialog-modal" id="dialogModal" role="alertdialog" aria-modal="true" aria-labelledby="dlgTitle" aria-describedby="dlgMessage">
+  <div class="edition-box dialog-box">
+    <h2 id="dlgTitle"></h2>
+    <div id="dlgMessage"></div>
+    <input id="dlgInput" hidden autocomplete="off">
+    <div class="dialog-actions" id="dlgActions"></div>
+  </div>
+</div>
+
+<div class="update-bar" id="updateBar" role="status" hidden><span>Hay una versión nueva</span><button type="button" id="updateNow">Actualizar</button></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><p class="noscript">La despensa necesita JavaScript para funcionar.</p></noscript>
+
+<script src="./supabase-config.js"></script>
+<script type="module" src="./js/app.js?v=1.0"></script>
+<script>
+  // Red de seguridad: si la aplicación no llega a arrancar (sin cobertura o navegador antiguo), se ofrece salir.
+  setTimeout(function () {
+    if (window.__despensaArrancada) return;
+    var a = document.getElementById('loadingActions'), r = document.getElementById('loadingRetry'), c = document.getElementById('loadingClose');
+    document.getElementById('loadingTitle').textContent = 'La despensa está tardando en abrir';
+    document.getElementById('loadingText').textContent = 'Parece que la conexión es lenta. Puedes reintentar o volver al inicio de Hogar.';
+    a.hidden = false;
+    r.onclick = function () { location.reload(); };
+    c.textContent = 'Volver a Hogar';
+    c.onclick = function () { location.href = '../index.html'; };
+  }, 20000);
+</script>
+</body>
+</html>
