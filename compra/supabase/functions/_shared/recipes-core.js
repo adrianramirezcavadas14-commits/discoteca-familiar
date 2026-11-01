@@ -31,11 +31,12 @@ export function isRecipeSite(url, sites = DEFAULT_RECIPE_SITES) {
   return !!h && sites.some((s) => h === s || h.endsWith(`.${s}`));
 }
 
-async function getJson(fetchImpl, url, { headers = {}, timeoutMs = 15000 } = {}) {
+async function getJson(fetchImpl, url, { headers = {}, timeoutMs = 15000, userAgent = USER_AGENT } = {}) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeoutMs);
   try {
-    const res = await fetchImpl(url, { headers: { Accept: 'application/json', 'User-Agent': USER_AGENT, ...headers }, signal: ctl.signal });
+    // En el navegador no se envía User-Agent propio (no se puede y obligaría a una consulta previa CORS).
+    const res = await fetchImpl(url, { headers: { Accept: 'application/json', ...(userAgent ? { 'User-Agent': userAgent } : {}), ...headers }, signal: ctl.signal });
     if (!res.ok) throw new Error(`${hostOf(url)} respondió ${res.status}`);
     return await res.json();
   } catch (e) {
@@ -99,7 +100,7 @@ export function parseOpenverse(json) {
  * Busca imágenes. offset/page permite «cargar más».
  * Devuelve { images, provider, more, errors }.
  */
-export async function searchRecipeImages(query, { fetchImpl = fetch, braveKey = '', sites = DEFAULT_RECIPE_SITES, page = 0, perPage = 20 } = {}) {
+export async function searchRecipeImages(query, { fetchImpl = (...a) => fetch(...a), braveKey = '', sites = DEFAULT_RECIPE_SITES, page = 0, perPage = 20, userAgent = USER_AGENT } = {}) {
   const q = cleanQuery(query);
   if (q.length < 2) throw new Error('Escribe al menos dos letras.');
   const errors = [];
@@ -113,9 +114,9 @@ export async function searchRecipeImages(query, { fetchImpl = fetch, braveKey = 
   }
   // Sin clave: tres fuentes libres EN PARALELO; basta con que una responda.
   const sources = [
-    ['Wikipedia', page === 0 ? getJson(fetchImpl, `https://es.wikipedia.org/w/api.php?${new URLSearchParams({ action: 'query', format: 'json', generator: 'search', gsrsearch: q, gsrlimit: '12', gsrnamespace: '0', prop: 'pageimages|info', piprop: 'thumbnail', pithumbsize: '640', inprop: 'url', redirects: '1', origin: '*' })}`).then(parseWikipedia) : Promise.resolve([])],
-    ['Wikimedia Commons', getJson(fetchImpl, `https://commons.wikimedia.org/w/api.php?${new URLSearchParams({ action: 'query', format: 'json', generator: 'search', gsrsearch: `${q} filetype:bitmap`, gsrnamespace: '6', gsrlimit: String(perPage), gsroffset: String(page * perPage), prop: 'imageinfo', iiprop: 'url|extmetadata', iiextmetadatafilter: 'Artist|LicenseShortName', iiurlwidth: '640', origin: '*' })}`).then(parseCommons)],
-    ['Openverse', getJson(fetchImpl, `https://api.openverse.org/v1/images/?${new URLSearchParams({ q, page_size: String(perPage), page: String(page + 1), mature: 'false' })}`, { timeoutMs: 12000 }).then(parseOpenverse)]
+    ['Wikipedia', page === 0 ? getJson(fetchImpl, `https://es.wikipedia.org/w/api.php?${new URLSearchParams({ action: 'query', format: 'json', generator: 'search', gsrsearch: q, gsrlimit: '12', gsrnamespace: '0', prop: 'pageimages|info', piprop: 'thumbnail', pithumbsize: '640', inprop: 'url', redirects: '1', origin: '*' })}`, { userAgent }).then(parseWikipedia) : Promise.resolve([])],
+    ['Wikimedia Commons', getJson(fetchImpl, `https://commons.wikimedia.org/w/api.php?${new URLSearchParams({ action: 'query', format: 'json', generator: 'search', gsrsearch: `${q} filetype:bitmap`, gsrnamespace: '6', gsrlimit: String(perPage), gsroffset: String(page * perPage), prop: 'imageinfo', iiprop: 'url|extmetadata', iiextmetadatafilter: 'Artist|LicenseShortName', iiurlwidth: '640', origin: '*' })}`, { userAgent }).then(parseCommons)],
+    ['Openverse', getJson(fetchImpl, `https://api.openverse.org/v1/images/?${new URLSearchParams({ q, page_size: String(perPage), page: String(page + 1), mature: 'false' })}`, { timeoutMs: 12000, userAgent }).then(parseOpenverse)]
   ];
   const results = await Promise.allSettled(sources.map((x) => x[1]));
   const lists = results.map((r, i) => {

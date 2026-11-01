@@ -10,6 +10,7 @@ import { S, notify, flushDraft, refreshLists, queueInfo } from './store.js';
 import { api, ApiError, isNetworkError, explainError } from './api.js';
 import { idb } from './idb.js';
 import { uuid } from '../core/text.js';
+import { searchRecipeImages as searchDirect } from '../../supabase/functions/_shared/recipes-core.js';
 
 const emit = (what) => notify(what);
 
@@ -210,13 +211,31 @@ export function recipesFor(slot) {
   return [...S.recipes.values()].filter((r) => r[k]);
 }
 
-/** Búsqueda de imágenes en el servidor (función compra-recetas). */
+/**
+ * Búsqueda de imágenes: primero en el servidor (función compra-recetas, que puede usar Brave).
+ * Si el servidor falla o no trae nada, el navegador consulta directamente las API públicas de
+ * Wikipedia, Wikimedia Commons y Openverse (gratuitas, sin clave y preparadas para esto).
+ */
 const imageCache = new Map();
 export async function searchRecipeImages(q, page = 0) {
   const key = `${String(q).trim().toLowerCase()}|${page}`;
   if (imageCache.has(key)) return imageCache.get(key);
   requireOnline('buscar imágenes');
-  const res = await api.recipes({ action: 'buscar', q, page });
+  let res = null;
+  let serverError = null;
+  try {
+    res = await api.recipes({ action: 'buscar', q, page });
+    if (res?.errors?.length) console.warn('[Despensa] Imágenes (servidor):', res.errors.join(' · '));
+  } catch (e) { serverError = e; console.warn('[Despensa] Imágenes: el servidor no ha respondido, se busca desde el navegador.', e?.message || e); }
+  if (!res?.images?.length) {
+    try {
+      const direct = await searchDirect(q, { page, userAgent: null });
+      if (direct.errors?.length) console.warn('[Despensa] Imágenes (navegador):', direct.errors.join(' · '));
+      if (direct.images?.length || !res) res = { ...direct, provider: `${direct.provider}-navegador` };
+    } catch (e) {
+      if (!res) throw new ApiError(e.message, { userMessage: `${serverError ? `${explainError(serverError)} · ` : ''}${e.message}` });
+    }
+  }
   imageCache.set(key, res);
   return res;
 }

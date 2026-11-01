@@ -290,6 +290,21 @@ try {
     assert.ok(box && box.y >= 0 && box.y < 260, `la cabecera de la zona sigue visible (${box?.y})`);
     assert.ok(await page.locator('#page-lista .prep-sticky .zone-nav [data-map]').isVisible(), 'salir al mapa siempre accesible');
     await shot(page, '05c-zona-cabecera-fija');
+    assert.ok(await page.locator('#page-lista [data-to-top]').isVisible(), 'botón azul para subir visible al bajar');
+    // Cambiar de pasillo desde abajo: la nueva zona empieza arriba, justo debajo de la cabecera fija
+    await page.click('#page-lista .prep-sticky .zn-arrow.next');
+    await page.waitForFunction(() => /10/.test(document.querySelector('#page-lista .zn-current .zn-num')?.textContent || ''));
+    await page.waitForTimeout(300);
+    const gap = await page.evaluate(() => { const st = document.querySelector('#page-lista .prep-sticky').getBoundingClientRect(); const b = document.querySelector('#page-lista [data-body]').getBoundingClientRect(); return Math.round(b.top - st.bottom); });
+    assert.ok(gap >= -2 && gap < 40, `la lista empieza arriba al cambiar de pasillo (separación ${gap}px)`);
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(250);
+    await page.click('#page-lista [data-to-top]');
+    await page.waitForTimeout(900);
+    const gap2 = await page.evaluate(() => { const st = document.querySelector('#page-lista .prep-sticky').getBoundingClientRect(); const b = document.querySelector('#page-lista [data-body]').getBoundingClientRect(); return Math.round(b.top - st.bottom); });
+    assert.ok(gap2 >= -2 && gap2 < 40, `el botón azul sube al principio (separación ${gap2}px)`);
+    await page.click('#page-lista .prep-sticky .zn-arrow.prev');
+    await page.waitForFunction(() => /9/.test(document.querySelector('#page-lista .zn-current .zn-num')?.textContent || ''));
     const flag = page.locator('#page-lista [data-more-results] .flag-btn').first();
     await flag.click();
     await page.waitForSelector('#page-lista [data-more-results] .flag-btn.on');
@@ -351,6 +366,19 @@ try {
     const rr = await q('select category from compra.recipes');
     assert.deepEqual(rr, [{ category: 'ambas' }], 'una sola receta, ahora de comida y cena');
     await shot(page, '17b-menu-semana');
+    // Si el servidor de imágenes falla, el navegador busca directamente en Wikipedia
+    await page.route('**/functions/v1/compra-recetas', (r) => r.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"caído a propósito"}' }));
+    await page.route(/^https:\/\/es\.wikipedia\.org\/w\/api\.php/, (r) => r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ query: { pages: { 1: { index: 1, title: 'Sopa de ajo', fullurl: 'https://es.wikipedia.org/wiki/Sopa_de_ajo', thumbnail: { source: 'https://upload.wikimedia.org/fake/640px-Sopa_de_ajo.jpg' } } } } }) }));
+    await page.click('#page-menu .menu-day:nth-child(2) [data-slot="cena"]');
+    await page.waitForSelector('#panelBody [data-rq]');
+    await page.fill('#panelBody [data-rq]', 'Sopa de ajo');
+    await page.press('#panelBody [data-rq]', 'Enter');
+    await page.waitForSelector('#panelBody .image-choice');
+    assert.match(await page.textContent('#panelBody .image-choice'), /Wikipedia/);
+    await page.click('#panelBody .image-choice');
+    await page.click('#panelBody [data-isave]');
+    await page.waitForFunction(() => document.querySelectorAll('#page-menu .menu-day:nth-child(2) .menu-entry').length === 1);
+    await page.unroute('**/functions/v1/compra-recetas');
   });
 
 

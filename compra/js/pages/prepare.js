@@ -37,7 +37,8 @@ function basketBar(zoneOpen) {
 
 export function render(el, params = []) {
   const zid = params[0] || null;
-  if (zid !== ui.zoneId) Object.assign(ui, { zoneId: zid, q: '', sub: '', sort: 'alpha', promo: false });
+  const zoneChanged = zid !== ui.zoneId;
+  if (zoneChanged) Object.assign(ui, { zoneId: zid, q: '', sub: '', sort: 'alpha', promo: false });
   if (S.pending.list && !S.draft.items.size && !zid) {
     // Hay compra pendiente y ninguna lista nueva: se avisa, pero se puede empezar otra.
   }
@@ -49,9 +50,21 @@ export function render(el, params = []) {
       <div data-basket></div>
       <div data-zonenav></div>
     </div>
-    <div data-body></div>`;
+    <div data-body></div>
+    <button type="button" class="to-top" data-to-top aria-label="Subir al principio de la lista" title="Subir al principio de la lista" hidden><span aria-hidden="true">↑</span></button>`;
   bind(el);
   paint(el);
+  // Al cambiar de pasillo se empieza siempre por arriba (justo debajo de la cabecera fija).
+  if (zoneChanged) requestAnimationFrame(() => { if (zid) scrollToListTop(el, 'auto'); else window.scrollTo(0, 0); updateToTop(el); });
+}
+
+/** Botón azul fijo para subir: aparece al bajar dentro de una zona. */
+function updateToTop(el) {
+  const b = el.querySelector('[data-to-top]');
+  if (!b) return;
+  const body = el.querySelector('[data-body]');
+  const show = !!ui.zoneId && el.classList.contains('active') && body && body.getBoundingClientRect().top < 0;
+  b.hidden = !show;
 }
 
 /* Buscador universal: uno solo para las dos listas, fuera de cualquier zona. */
@@ -191,6 +204,12 @@ const bound = new WeakSet();
 function bind(el) {
   if (bound.has(el)) return;
   bound.add(el);
+  let ticking = false;
+  window.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => { ticking = false; updateToTop(el); });
+  }, { passive: true });
   const onSearch = debounce((v) => { ui.q = v; paintMoreResults(el); }, 250);
   el.addEventListener('input', (e) => {
     if (e.target.matches('[data-q]')) onSearch(e.target.value);
@@ -203,6 +222,7 @@ function bind(el) {
   el.addEventListener('click', async (e) => {
     const t = e.target;
     if (t.closest('[data-finder]')) return;   // el buscador universal tiene sus propios botones
+    if (t.closest('[data-to-top]')) { scrollToListTop(el); return; }
     const fl = t.closest('[data-flag]');
     if (fl) { await toggleFlag(fl.dataset.flag); return; }
     const lt = t.closest('[data-later]');
@@ -231,12 +251,14 @@ function bind(el) {
 }
 
 /** Sube al principio de la lista (justo debajo de la cabecera fija). */
-function scrollToListTop(el) {
+function scrollToListTop(el, behavior = 'smooth') {
   const body = el.querySelector('[data-body]');
   const sticky = el.querySelector('[data-sticky]');
   if (!body) return;
-  const top = body.getBoundingClientRect().top + window.scrollY - (sticky ? sticky.getBoundingClientRect().height : 0) - 8;
-  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  const header = document.querySelector('.top');
+  const offset = (sticky ? sticky.getBoundingClientRect().height : 0) + (header ? header.getBoundingClientRect().height : 0) + 8;
+  const top = body.getBoundingClientRect().top + window.scrollY - offset;
+  window.scrollTo({ top: Math.max(0, top), behavior });
 }
 
 /** «Guardar»: con conexión muestra la pantalla de guardado (carro); sin conexión queda en el dispositivo. */
