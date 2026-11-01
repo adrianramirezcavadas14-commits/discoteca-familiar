@@ -16,6 +16,8 @@ const js = files.filter((f) => /\.(m?js)$/.test(f));
 for (const f of js) {
   try { execFileSync(process.execPath, ['--check', f], { stdio: 'pipe' }); } catch (e) { problems.push(`${relative(root, f)}: error de sintaxis\n${e.stderr}`); }
   const src = readFileSync(f, 'utf8');
+  // GitHub Pages (Jekyll) NO publica carpetas que empiezan por «_»: el navegador no puede importar de ahí.
+  if (relative(root, f).startsWith('js')) for (const m of src.matchAll(/(?:from\s+|import\()\s*'([^']+)'/g)) if (/(^|\/)_[^/]/.test(m[1])) problems.push(`${relative(root, f)}: importa ${m[1]} (carpeta con «_», GitHub Pages no la publica)`);
   for (const m of src.matchAll(/^import\s+\{([^}]+)\}\s+from\s+'([^']+)'/gm)) {
     const names = m[1].split(',').map((s) => s.trim().split(/\s+as\s+/).pop()).filter(Boolean);
     const body = src.slice(m.index + m[0].length);

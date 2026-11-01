@@ -173,6 +173,8 @@ export async function startStack({ apiPort = 8081, webPort = 8080, pgrstPort = 3
     const url = new URL(req.url, `http://localhost:${webPort}`);
     let p = normalize(join(REPO, decodeURIComponent(url.pathname)));
     if (!p.startsWith(REPO)) { res.writeHead(403); res.end(); return; }
+    // Como GitHub Pages (Jekyll): las carpetas y archivos que empiezan por «_» no se publican.
+    if (/(^|[\\/])_[^\\/]/.test(p.slice(REPO.length))) { res.writeHead(404); res.end('No publicado'); return; }
     if (existsSync(p) && statSync(p).isDirectory()) p = join(p, 'index.html');
     if (!existsSync(p)) { res.writeHead(404); res.end('No encontrado'); return; }
     res.writeHead(200, { 'Content-Type': MIME[extname(p)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });

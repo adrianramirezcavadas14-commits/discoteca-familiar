@@ -10,7 +10,6 @@ import { S, notify, flushDraft, refreshLists, queueInfo } from './store.js';
 import { api, ApiError, isNetworkError, explainError } from './api.js';
 import { idb } from './idb.js';
 import { uuid } from '../core/text.js';
-import { searchRecipeImages as searchDirect } from '../../supabase/functions/_shared/recipes-core.js';
 
 const emit = (what) => notify(what);
 
@@ -229,9 +228,11 @@ export async function searchRecipeImages(q, page = 0) {
   } catch (e) { serverError = e; console.warn('[Despensa] Imágenes: el servidor no ha respondido, se busca desde el navegador.', e?.message || e); }
   if (!res?.images?.length) {
     try {
-      const direct = await searchDirect(q, { page, userAgent: null });
+      // Carga diferida: si este archivo faltara, la despensa sigue abriendo igual.
+      const { searchImagesInBrowser } = await import('./recipe-images.js');
+      const direct = await searchImagesInBrowser(q, page);
       if (direct.errors?.length) console.warn('[Despensa] Imágenes (navegador):', direct.errors.join(' · '));
-      if (direct.images?.length || !res) res = { ...direct, provider: `${direct.provider}-navegador` };
+      if (direct.images?.length || !res) res = direct;
     } catch (e) {
       if (!res) throw new ApiError(e.message, { userMessage: `${serverError ? `${explainError(serverError)} · ` : ''}${e.message}` });
     }
