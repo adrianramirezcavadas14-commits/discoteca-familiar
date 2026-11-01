@@ -4,9 +4,32 @@
 //   POST multipart action=subir, file        → { url } (bucket público compra-recetas)
 // La clave familiar (si está activada) se valida igual que en las otras funciones.
 // =====================================================================
-import { createSupabaseDb } from './db-supabase.js';
-import { corsHeaders, json, resolveCaller } from './http.js';
+// Autónoma a propósito: solo depende de recipes-core.js (así el despliegue con --use-api
+// no necesita resolver más archivos compartidos).
 import { searchRecipeImages, validateRecipeImage, cleanQuery, MAX_RECIPE_IMAGE_BYTES, DEFAULT_RECIPE_SITES } from './recipes-core.js';
+
+function corsHeaders(req, allowed = '') {
+  const origin = req.headers.get('origin') || '';
+  const list = String(allowed || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const allowOrigin = !list.length ? '*' : (list.includes(origin) ? origin : list[0]);
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-compra-key',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Max-Age': '86400',
+    Vary: 'Origin'
+  };
+}
+function json(body, status = 200, cors = {}) {
+  return new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
+}
+/** Familia de la petición: la clave familiar es opcional (x-compra-key), igual que en las otras funciones. */
+async function resolveCaller(req, client) {
+  const key = (req.headers.get('x-compra-key') || '').trim().slice(0, 200);
+  const { data, error } = await client.rpc('household_for_request', { p_key: key });
+  if (error) throw error;
+  return data ? { householdId: data } : null;
+}
 
 /** Almacenamiento real: bucket público de Supabase Storage (solo escribe esta función). */
 export function supabaseRecipeStorage(client, bucket) {
@@ -17,7 +40,6 @@ export function supabaseRecipeStorage(client, bucket) {
 }
 
 export function createRecipesHandler({ client, storage, fetchImpl = fetch, braveKey = '', sites = '', allowedOrigins = '', newId = () => crypto.randomUUID() }) {
-  const db = createSupabaseDb(client);
   const siteList = String(sites || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
   const SITES = siteList.length ? siteList : DEFAULT_RECIPE_SITES;
   // Caché corta en memoria: la misma búsqueda repetida no vuelve a salir a Internet.
@@ -28,7 +50,7 @@ export function createRecipesHandler({ client, storage, fetchImpl = fetch, brave
     if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
     if (req.method !== 'POST') return json({ error: 'Método no permitido' }, 405, cors);
     try {
-      const caller = await resolveCaller(req, db);
+      const caller = await resolveCaller(req, client);
       if (!caller) return json({ error: 'Clave familiar no válida.', code: 'clave_familiar_no_valida' }, 401, cors);
       const type = req.headers.get('content-type') || '';
 

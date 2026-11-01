@@ -37,7 +37,7 @@ export function stepperHtml(pid, qty, { label = '' } = {}) {
 }
 
 /** Tarjeta de «Los de siempre» y «Más productos». */
-export function prepCard(p, qty, freq = 0, { flagged = false } = {}) {
+export function prepCard(p, qty, freq = 0, { flagged = false, later = 0 } = {}) {
   const sub = p.subsubcategory_name || p.subcategory_name || p.category_name || '';
   return `<article class="pcard${qty ? ' in' : ''}${flagged ? ' flagged' : ''}" data-pid="${esc(p.id)}">
     <div class="badges">${newBadge(p)}${availabilityPill(p)}</div>
@@ -47,7 +47,7 @@ export function prepCard(p, qty, freq = 0, { flagged = false } = {}) {
       <small class="pcat">${esc(sub)}${freq ? ` · ${plural(freq, 'lista', 'listas')}` : ''}</small>
       ${p.format_label ? `<small class="pfmt">${esc(p.format_label)}</small>` : ''}
       <div>${priceHtml(p)}</div>
-      <div class="qty">${qty ? stepperHtml(p.id, qty, { label: p.name }) : `<button type="button" class="add-btn" data-inc="${esc(p.id)}" aria-label="Añadir ${esc(p.name)} a la lista">+ Añadir</button>`}<button type="button" class="flag-btn${flagged ? ' on' : ''}" data-flag="${esc(p.id)}" aria-pressed="${flagged}" aria-label="${flagged ? 'Quitar la marca de pendiente de revisar' : 'Marcar como pendiente de revisar'}: ${esc(p.name)}" title="${flagged ? 'Pendiente de revisar (toca para quitar)' : 'Marcar como pendiente de revisar'}"><span aria-hidden="true">🚩</span></button></div>
+      <div class="qty">${qty ? stepperHtml(p.id, qty, { label: p.name }) : `<button type="button" class="add-btn" data-inc="${esc(p.id)}" aria-label="Añadir ${esc(p.name)} a la lista">+ Añadir</button>`}<button type="button" class="later-btn${later ? ' on' : ''}" data-later="${esc(p.id)}" aria-label="Añadir ${esc(p.name)} a Pendientes no urgentes${later ? ` (ya hay ${later})` : ''}" title="Añadir a «Pendientes no urgentes»${later ? ` · ya hay ${later}` : ''}"><span aria-hidden="true">🕰️</span>${later ? `<b>${later}</b>` : ''}</button><button type="button" class="flag-btn${flagged ? ' on' : ''}" data-flag="${esc(p.id)}" aria-pressed="${flagged}" aria-label="${flagged ? 'Quitar la marca de pendiente de revisar' : 'Marcar como pendiente de revisar'}: ${esc(p.name)}" title="${flagged ? 'Pendiente de revisar (toca para quitar)' : 'Marcar como pendiente de revisar'}"><span aria-hidden="true">🚩</span></button></div>
     </div>
   </article>`;
 }

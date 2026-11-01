@@ -324,7 +324,7 @@ try {
     await page.waitForSelector('#panelBody [data-rq]');
     await page.fill('#panelBody [data-rq]', 'Lentejas con chorizo');
     await page.press('#panelBody [data-rq]', 'Enter');
-    await page.waitForSelector('#panelBody .image-choice').catch(async (e) => { await shot(page, 'debug-menu'); console.error('Panel:', await page.textContent('#panelBody').catch(() => '?')); throw e; });
+    await page.waitForSelector('#panelBody .image-choice').catch(async (e) => { await shot(page, 'debug-menu'); console.error('Panel:', await page.textContent('#panelBody').catch(() => '?'), 'abierto:', await page.evaluate(() => document.querySelector('#panelModal').className), 'errores:', JSON.stringify(consoleErrors), 'url:', page.url()); throw e; });
     assert.equal(await page.locator('#panelBody .image-choice').count(), 5, 'primero 5 imágenes');
     assert.ok(await page.locator('#panelBody [data-isave]').isDisabled(), 'sin imagen no se puede guardar');
     await page.click('#panelBody [data-imore]');

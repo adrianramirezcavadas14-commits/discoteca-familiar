@@ -759,3 +759,11 @@ a { color: var(--shop-dark); }
   .prep-sticky .zone-nav .zn-current .btn { padding: 4px 8px; min-height: 40px; flex: 0 0 auto; }
   .prep-sticky .zone-nav .zn-arrow { min-height: 44px; min-width: 44px; }
 }
+
+/* v1.2.1 · Botón «Pendientes no urgentes» en cada tarjeta y cabecera que lleva arriba */
+.later-btn { min-width: 44px; height: 44px; border-radius: 13px; border: 1px solid var(--line); background: #fff; font-size: 18px; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 0 8px; flex: 0 0 auto; color: var(--ink); }
+.later-btn b { font-size: 13px; font-weight: 950; }
+.later-btn.on { background: #eef0f8; border-color: #b9c0dd; }
+.later-btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.prep-sticky.with-zone { cursor: pointer; }
+.prep-sticky.with-zone button, .prep-sticky.with-zone a { cursor: pointer; }

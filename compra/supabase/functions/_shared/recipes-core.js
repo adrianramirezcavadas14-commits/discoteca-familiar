@@ -12,7 +12,7 @@
 
 export const RECIPE_BUCKET = 'compra-recetas';
 export const MAX_RECIPE_IMAGE_BYTES = 3 * 1024 * 1024;
-export const USER_AGENT = 'HogarDespensa/1.1 (aplicación familiar; https://github.com)';
+export const USER_AGENT = 'HogarDespensa/1.2 (aplicacion familiar; https://github.com/) Deno';
 
 export const DEFAULT_RECIPE_SITES = [
   'recetasgratis.net', 'directoalpaladar.com', 'cookpad.com', 'hogarmania.com', 'recetasderechupete.com',
@@ -31,7 +31,7 @@ export function isRecipeSite(url, sites = DEFAULT_RECIPE_SITES) {
   return !!h && sites.some((s) => h === s || h.endsWith(`.${s}`));
 }
 
-async function getJson(fetchImpl, url, { headers = {}, timeoutMs = 9000 } = {}) {
+async function getJson(fetchImpl, url, { headers = {}, timeoutMs = 15000 } = {}) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeoutMs);
   try {
@@ -55,6 +55,18 @@ export function parseBrave(json, sites = DEFAULT_RECIPE_SITES) {
     out.push({ url: image, thumb, page, title: strip(r?.title), source: hostOf(page) || r?.source || 'web', credit: hostOf(page) || null, recipeSite: isRecipeSite(page, sites) });
   }
   return [...out.filter((x) => x.recipeSite), ...out.filter((x) => !x.recipeSite)];
+}
+
+/** Wikipedia en español: la foto principal de cada artículo (platos como «Lentejas», «Tortilla de patatas»…). */
+export function parseWikipedia(json) {
+  const pages = Object.values(json?.query?.pages || {}).sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+  const out = [];
+  for (const p of pages) {
+    const thumb = https(p?.thumbnail?.source);
+    if (!thumb || /\.svg/i.test(thumb)) continue;
+    out.push({ url: thumb, thumb, page: p?.fullurl || null, title: strip(p?.title), source: 'Wikipedia', credit: 'Wikipedia · ver licencia en la página', recipeSite: false });
+  }
+  return out;
 }
 
 export function parseCommons(json) {
@@ -99,20 +111,25 @@ export async function searchRecipeImages(query, { fetchImpl = fetch, braveKey = 
       if (slice.length || page > 0) return { images: dedupe(slice), provider: 'brave', more: all.length > (page + 1) * perPage, errors };
     } catch (e) { errors.push(`Brave: ${e.message}`); }
   }
-  const results = await Promise.allSettled([
-    getJson(fetchImpl, `https://commons.wikimedia.org/w/api.php?${new URLSearchParams({ action: 'query', format: 'json', generator: 'search', gsrsearch: `${q} filetype:bitmap`, gsrnamespace: '6', gsrlimit: String(perPage), gsroffset: String(page * perPage), prop: 'imageinfo', iiprop: 'url|extmetadata', iiurlwidth: '640', origin: '*' })}`).then(parseCommons),
-    getJson(fetchImpl, `https://api.openverse.org/v1/images/?${new URLSearchParams({ q, page_size: String(perPage), page: String(page + 1), mature: 'false' })}`).then(parseOpenverse)
-  ]);
-  const [commons, openverse] = results.map((r, i) => {
+  // Sin clave: tres fuentes libres EN PARALELO; basta con que una responda.
+  const sources = [
+    ['Wikipedia', page === 0 ? getJson(fetchImpl, `https://es.wikipedia.org/w/api.php?${new URLSearchParams({ action: 'query', format: 'json', generator: 'search', gsrsearch: q, gsrlimit: '12', gsrnamespace: '0', prop: 'pageimages|info', piprop: 'thumbnail', pithumbsize: '640', inprop: 'url', redirects: '1', origin: '*' })}`).then(parseWikipedia) : Promise.resolve([])],
+    ['Wikimedia Commons', getJson(fetchImpl, `https://commons.wikimedia.org/w/api.php?${new URLSearchParams({ action: 'query', format: 'json', generator: 'search', gsrsearch: `${q} filetype:bitmap`, gsrnamespace: '6', gsrlimit: String(perPage), gsroffset: String(page * perPage), prop: 'imageinfo', iiprop: 'url|extmetadata', iiextmetadatafilter: 'Artist|LicenseShortName', iiurlwidth: '640', origin: '*' })}`).then(parseCommons)],
+    ['Openverse', getJson(fetchImpl, `https://api.openverse.org/v1/images/?${new URLSearchParams({ q, page_size: String(perPage), page: String(page + 1), mature: 'false' })}`, { timeoutMs: 12000 }).then(parseOpenverse)]
+  ];
+  const results = await Promise.allSettled(sources.map((x) => x[1]));
+  const lists = results.map((r, i) => {
     if (r.status === 'fulfilled') return r.value;
-    errors.push(`${i ? 'Openverse' : 'Wikimedia Commons'}: ${r.reason?.message || r.reason}`);
+    errors.push(`${sources[i][0]}: ${r.reason?.message || r.reason}`);
     return [];
   });
-  if (!commons.length && !openverse.length && errors.length) throw new Error(`No se han podido buscar imágenes (${errors.join(' · ')})`);
-  // Se intercalan las dos fuentes para que las primeras 5 sean variadas.
+  if (!lists.some((l) => l.length) && errors.length === sources.length - (page === 0 ? 0 : 1)) {
+    throw new Error(`No se han podido buscar imágenes (${errors.join(' · ')})`);
+  }
+  // Se intercalan las fuentes para que las primeras 5 sean variadas (Wikipedia primero: suele ser la foto del plato).
   const mixed = [];
-  for (let i = 0; i < Math.max(commons.length, openverse.length); i++) { if (commons[i]) mixed.push(commons[i]); if (openverse[i]) mixed.push(openverse[i]); }
-  return { images: dedupe(mixed), provider: 'libre', more: commons.length >= perPage || openverse.length >= perPage, errors };
+  for (let i = 0; i < Math.max(...lists.map((l) => l.length)); i++) for (const l of lists) if (l[i]) mixed.push(l[i]);
+  return { images: dedupe(mixed), provider: 'libre', more: lists[1].length >= perPage || lists[2].length >= perPage, errors };
 }
 
 function dedupe(list) {

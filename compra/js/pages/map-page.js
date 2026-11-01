@@ -38,8 +38,6 @@ function paint(el) {
 }
 
 function paintMap(body) {
-  const counts = new Map();
-  for (const [pid, it] of S.draft.items) if (it.quantity > 0) { const z = zoneIdOf(pid); if (z) counts.set(z, (counts.get(z) || 0) + 1); }
   const none = unclassifiedProducts().length;
   body.innerHTML = `
     <div data-finder style="margin-top:16px"></div>
@@ -50,8 +48,7 @@ function paintMap(body) {
     onOpen: (pid) => showProduct(pid, body.closest('.page'))
   });
   renderMap(body.querySelector('[data-map-host]'), {
-    zones: S.zones, counts, countLabel: ['producto pendiente en la lista', 'productos pendientes en la lista'],
-    legend: 'El número rojo indica los productos de la lista pendientes en cada zona.',
+    zones: S.zones,
     extraButtons: none ? [{ id: NONE, label: '❔ Sin clasificar', count: none }] : [],
     onSelect: (id) => go('mapa', id), onExtra: (id) => go('mapa', id),
     editable: true, editHolder: mapEdit,

@@ -68,3 +68,21 @@ test('buscador universal: sin tildes ni mayúsculas, parcial y en todas las zona
   assert.deepEqual(findProducts('guado', list, selectable).map((p) => p.id), ['1']);
   assert.deepEqual(findProducts('', list, selectable), []);
 });
+
+test('imágenes de recetas: basta con que responda una fuente y Wikipedia va primero', async () => {
+  const { searchRecipeImages } = await import('../../supabase/functions/_shared/recipes-core.js');
+  const ok = (b) => new Response(JSON.stringify(b), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  const fetchImpl = async (url, { signal } = {}) => {
+    const u = new URL(url);
+    if (u.host === 'es.wikipedia.org') return ok({ query: { pages: { 1: { index: 1, title: 'Lentejas', fullurl: 'https://es.wikipedia.org/wiki/Lentejas', thumbnail: { source: 'https://upload.wikimedia.org/x/640px-Lentejas.jpg' } }, 2: { index: 2, title: 'Mapa', thumbnail: { source: 'https://upload.wikimedia.org/x/mapa.svg.png' } } } } });
+    if (u.host === 'api.openverse.org') throw new Error('respondió 503');
+    return new Promise((_, rej) => signal.addEventListener('abort', () => rej(Object.assign(new Error('abort'), { name: 'AbortError' }))));   // Commons no contesta
+  };
+  const t = Date.now();
+  const res = await searchRecipeImages('lentejas', { fetchImpl });
+  assert.ok(Date.now() - t < 20000);
+  assert.equal(res.images[0].source, 'Wikipedia');
+  assert.equal(res.images.length, 1, 'se descartan los mapas en SVG');
+  assert.equal(res.errors.length, 2);
+  await assert.rejects(searchRecipeImages('lentejas', { fetchImpl: async () => { throw new Error('sin red'); } }), /No se han podido buscar imágenes/);
+});

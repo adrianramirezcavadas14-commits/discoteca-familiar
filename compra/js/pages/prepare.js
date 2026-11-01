@@ -19,14 +19,6 @@ const NONE = 'sin-zona';
 const ui = { zoneId: null, q: '', sub: '', sort: 'alpha', promo: false };
 
 const draftItems = () => [...S.draft.items].map(([product_id, it]) => ({ product_id, quantity: it.quantity }));
-function countsByZone() {
-  const m = new Map();
-  for (const [pid, it] of S.draft.items) {
-    const z = zoneIdOf(pid) || NONE;
-    m.set(z, (m.get(z) || 0) + (it.quantity > 0 ? 1 : 0));
-  }
-  return m;
-}
 
 function basketBar(zoneOpen) {
   const t = listTotals(draftItems(), S.products);
@@ -103,7 +95,6 @@ function paint(el, { keepFocus = false } = {}) {
 }
 
 function paintMap(body) {
-  const counts = countsByZone();
   const t = listTotals(draftItems(), S.products);
   const none = unclassifiedProducts().length;
   body.innerHTML = `
@@ -114,9 +105,8 @@ function paintMap(body) {
     <div class="close-list-bar"><button type="button" class="btn primary big-btn" data-close-list ${t.products ? '' : 'disabled'}>✅ Cerrar lista</button></div>
     ${backlogCard()}`;
   renderMap(body.querySelector('[data-map-host]'), {
-    zones: S.zones, counts, activeId: null, countLabel: ['producto en la lista', 'productos en la lista'],
-    legend: 'El número rojo indica cuántos productos de la zona hay ya en la lista.',
-    extraButtons: none ? [{ id: NONE, label: '❔ Productos sin zona', count: counts.get(NONE) || null }] : [],
+    zones: S.zones, activeId: null,
+    extraButtons: none ? [{ id: NONE, label: '❔ Productos sin zona' }] : [],
     onSelect: (id) => go('lista', id),
     onExtra: (id) => go('lista', id)
   });
@@ -158,7 +148,7 @@ function paintZone(body, navHost) {
 
     <section class="block" aria-labelledby="b2">
       <div class="block-head"><h3 id="b2">2. Los de siempre</h3><small>Ordenados por el número de listas en las que han aparecido</small></div>
-      ${blocks.frequent.length ? `<div class="cards">${blocks.frequent.map((p) => prepCard(p, inList.get(p.id) || 0, S.freq.get(p.id), { flagged: isFlagged(p.id) })).join('')}</div>` : '<div class="empty-note">Cuando terminemos compras, aquí aparecerán los productos habituales de esta zona.</div>'}
+      ${blocks.frequent.length ? `<div class="cards">${blocks.frequent.map((p) => prepCard(p, inList.get(p.id) || 0, S.freq.get(p.id), { flagged: isFlagged(p.id), later: backlogQty(p.id) })).join('')}</div>` : '<div class="empty-note">Cuando terminemos compras, aquí aparecerán los productos habituales de esta zona.</div>'}
     </section>
 
     <section class="block" aria-labelledby="b3">
@@ -178,7 +168,7 @@ function moreResults(moreBase, inList) {
   const filtered = sortProducts(filterProducts(moreBase, { q: ui.q, subcategory: ui.sub || null, promo: ui.promo }), ui.sort);
   return {
     count: plural(filtered.length, 'producto', 'productos'),
-    html: filtered.length ? `<div class="cards">${filtered.map((p) => prepCard(p, inList.get(p.id) || 0, 0, { flagged: isFlagged(p.id) })).join('')}</div>` : `<div class="empty-note">${ui.q || ui.sub || ui.promo ? 'No hay productos con esos filtros.' : 'No hay más productos en esta zona.'}</div>`
+    html: filtered.length ? `<div class="cards">${filtered.map((p) => prepCard(p, inList.get(p.id) || 0, 0, { flagged: isFlagged(p.id), later: backlogQty(p.id) })).join('')}</div>` : `<div class="empty-note">${ui.q || ui.sub || ui.promo ? 'No hay productos con esos filtros.' : 'No hay más productos en esta zona.'}</div>`
   };
 }
 
@@ -215,6 +205,11 @@ function bind(el) {
     if (t.closest('[data-finder]')) return;   // el buscador universal tiene sus propios botones
     const fl = t.closest('[data-flag]');
     if (fl) { await toggleFlag(fl.dataset.flag); return; }
+    const lt = t.closest('[data-later]');
+    if (lt) { await changeBacklog(lt.dataset.later, backlogQty(lt.dataset.later) + 1, 'Añadido a «Pendientes no urgentes»'); return; }
+    // 2. Tocar una parte de la cabecera que no es un botón lleva al principio de la lista
+    const head = t.closest('[data-sticky]');
+    if (head && !t.closest('button, a, input, select, label')) { scrollToListTop(el); return; }
     const bq = t.closest('[data-bq]');
     if (bq) { await changeBacklog(bq.dataset.pid, backlogQty(bq.dataset.pid) + Number(bq.dataset.bq)); return; }
     const mv = t.closest('[data-move-to]');
@@ -233,6 +228,15 @@ function bind(el) {
     if (t.closest('[data-all]')) { showWholeList(); return; }
     if (t.closest('[data-close-list]')) { await closeListFlow(); }
   });
+}
+
+/** Sube al principio de la lista (justo debajo de la cabecera fija). */
+function scrollToListTop(el) {
+  const body = el.querySelector('[data-body]');
+  const sticky = el.querySelector('[data-sticky]');
+  if (!body) return;
+  const top = body.getBoundingClientRect().top + window.scrollY - (sticky ? sticky.getBoundingClientRect().height : 0) - 8;
+  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
 }
 
 /** «Guardar»: con conexión muestra la pantalla de guardado (carro); sin conexión queda en el dispositivo. */
