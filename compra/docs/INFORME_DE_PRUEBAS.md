@@ -1,4 +1,4 @@
-# Informe de pruebas · 31/10/2026
+# Informe de pruebas · 01/11/2026
 
 Entorno: Linux, Node 22.23, PostgreSQL 16.15, PostgREST 12.2.3 (el motor de la API REST de Supabase), Chromium (Playwright) y Deno 2.1.4 para las funciones Edge.
 
@@ -7,9 +7,9 @@ Entorno: Linux, Node 22.23, PostgreSQL 16.15, PostgREST 12.2.3 (el motor de la A
 | Suite | Comando (desde `compra/`) | Resultado |
 |---|---|---|
 | Revisión estática | `npm run lint` | ✅ 47 módulos: sintaxis, importaciones, ids HTML, secretos, precarga del service worker |
-| Lógica de la app y del servidor | `npm test` | ✅ 22/22 |
-| Base de datos (migraciones, RLS, funciones) | `npm run test:sql` | ✅ 21/21 (incluido el modo sin clave, la sincronización en varios tramos, el límite de fichas y el plano) |
-| Extremo a extremo con navegador real | `npm run test:e2e` | ✅ 15/15 pasos, 0 errores de consola |
+| Lógica de la app y del servidor | `npm test` | ✅ 27/27 |
+| Base de datos (migraciones, RLS, funciones) | `npm run test:sql` | ✅ 25/25 (incluidos modo sin clave, sincronización en tramos, plano, pendientes, segunda lista y menú semanal) |
+| Extremo a extremo con navegador real | `npm run test:e2e` | ✅ 20/20 pasos, 0 errores de consola |
 | Funciones Edge reales con Deno | `deno check` + `npm run test:deno` | ✅ tipos correctos · 4/4 comprobaciones |
 
 ## Qué NO se ha probado aquí (y por qué)
@@ -123,3 +123,9 @@ npm run test:sql
 npm run test:e2e
 DENO=/ruta/a/deno npm run test:deno
 ```
+
+## Versión 1.2 (01/11/2026)
+
+* **Despensa:** 5 pruebas lógicas nuevas (media acumulada con el ejemplo 45,3 → 37,65 → 38,43, semanas con cambios de mes, año y hora, nombres de recetas, buscador), 4 de base de datos (pendientes de revisar, segunda lista y mover entre listas de forma idempotente, menú semanal, nombre normalizado SQL = navegador) y 5 pasos de extremo a extremo (buscador en el mapa y en la lista, mover entre listas, sin «Ver más» y cabecera fija, pendientes de revisar, menú semanal con imágenes).
+* **Motor de Safari (WebKit 2.52, el de Safari/iPadOS) con WebDriver:** discos (conexión con una colección de 6 MB que antes daba «Error de conexión», ordenación, bloqueo sin red y desbloqueo al volver, deshacer si falla el guardado), libros (seis ordenaciones, orden guardado al recargar, miniaturas y portadas de leídos completas, estrellas) y despensa (buscador sin repintar la caja, cabecera fija, menú con imagen, gráfica, sin desplazamiento horizontal) sin errores de JavaScript.
+* No se ha podido probar en un iPad físico ni contra los proyectos reales de Supabase (sin acceso desde este entorno).

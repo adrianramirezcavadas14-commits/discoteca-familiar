@@ -1,9 +1,10 @@
 /* =====================================================================
    «El mapa del súper» · Zonas y productos asignados (edición)
    ===================================================================== */
-import { S, zonesByRoute, zoneById, productsInZone, unclassifiedProducts, productById, zoneIdOf, setZones, setZoneShapes, profileName, selectable } from '../data/store.js';
+import { S, zonesByRoute, zoneById, productsInZone, unclassifiedProducts, productById, zoneIdOf, setZones, setZoneShapes, profileName } from '../data/store.js';
 import { explainError } from '../data/api.js';
 import { renderMap } from '../ui/map.js';
+import { mountFinder } from '../ui/finder.js';
 import { tileHtml, openProductDetail } from '../ui/cards.js';
 import { toast, dialog, confirmDialog, closeModal } from '../ui/dom.js';
 import { go, broadcast } from '../ui/nav.js';
@@ -14,7 +15,7 @@ import { esc, plural, debounce, fmtDateTime } from '../core/text.js';
 const NONE = 'sin-zona';
 const TILE_PAGE = 60;
 const mapEdit = {};
-const ui = { zoneId: null, q: '', sub: '', page: 1, selecting: false, selected: new Set(), lastMove: null, globalQ: '' };
+const ui = { zoneId: null, q: '', sub: '', page: 1, selecting: false, selected: new Set(), lastMove: null };
 
 const zoneOptions = (sel = '') => zonesByRoute().map((z) => `<option value="${esc(z.id)}"${z.id === sel ? ' selected' : ''}>${z.route_order} · ${esc(z.name)}${z.active === false ? ' (desactivada)' : ''}</option>`).join('');
 
@@ -41,12 +42,13 @@ function paintMap(body) {
   for (const [pid, it] of S.draft.items) if (it.quantity > 0) { const z = zoneIdOf(pid); if (z) counts.set(z, (counts.get(z) || 0) + 1); }
   const none = unclassifiedProducts().length;
   body.innerHTML = `
-    <div class="card map-card" style="margin-top:16px"><div data-map-host></div></div>
-    <div class="card" style="margin-top:16px">
-      <div class="card-head"><h3>Buscar un producto en todo el súper</h3></div>
-      <input class="input" type="search" data-global value="${esc(ui.globalQ)}" placeholder="🔎 Nombre, marca o categoría…" aria-label="Buscar en todo el catálogo" autocomplete="off">
-      <div data-global-results style="margin-top:12px"></div>
-    </div>`;
+    <div data-finder style="margin-top:16px"></div>
+    <div class="card map-card" style="margin-top:16px"><div data-map-host></div></div>`;
+  mountFinder(body.querySelector('[data-finder]'), {
+    mode: 'mapa', title: 'Buscar un producto en todo el súper',
+    placeholder: '🔎 Escribe el nombre de un producto…',
+    onOpen: (pid) => showProduct(pid, body.closest('.page'))
+  });
   renderMap(body.querySelector('[data-map-host]'), {
     zones: S.zones, counts, countLabel: ['producto pendiente en la lista', 'productos pendientes en la lista'],
     legend: 'El número rojo indica los productos de la lista pendientes en cada zona.',
@@ -62,16 +64,6 @@ function paintMap(body) {
       } catch (e) { dialog({ title: 'No se ha podido guardar el plano', message: explainError(e) }); throw e; }
     }
   });
-  paintGlobal(body);
-}
-
-function paintGlobal(body) {
-  const host = body.querySelector('[data-global-results]');
-  if (!host) return;
-  const q = ui.globalQ.trim();
-  if (q.length < 2) { host.innerHTML = '<p class="muted">Escribe al menos dos letras.</p>'; return; }
-  const found = sortProducts(filterProducts([...S.products.values()].filter(selectable), { q }), 'alpha');
-  host.innerHTML = found.length ? `<p class="muted">${plural(found.length, 'resultado', 'resultados')}${found.length > 60 ? ' (se muestran 60)' : ''}</p><div class="tiles">${found.slice(0, 60).map((p) => tileHtml(p)).join('')}</div>` : '<div class="empty-note">No hay productos con ese nombre.</div>';
 }
 
 /** Solo la parte de resultados: al escribir en el buscador no se toca la caja de texto (el teclado del móvil no se cierra). */
@@ -129,10 +121,8 @@ function bind(el) {
   if (bound.has(el)) return;
   bound.add(el);
   const onQ = debounce((v) => { ui.q = v; ui.page = 1; paintZoneResults(el); }, 250);
-  const onG = debounce((v) => { ui.globalQ = v; paintGlobal(el.querySelector('[data-body]')); }, 250);
   el.addEventListener('input', (e) => {
     if (e.target.matches('[data-q]')) onQ(e.target.value);
-    if (e.target.matches('[data-global]')) onG(e.target.value);
   });
   el.addEventListener('change', (e) => { if (e.target.matches('[data-sub]')) { ui.sub = e.target.value; ui.page = 1; paintZoneResults(el); } });
   el.addEventListener('click', async (e) => {
@@ -194,7 +184,8 @@ function showProduct(pid, el) {
   const meta = S.overrideMeta.get(pid);
   const modal = openProductDetail(p, {
     extra: `<div class="card" style="margin-top:12px;padding:12px">
-      <label class="field"><span>Mover a la zona</span><select data-to aria-label="Mover a la zona">${zoneOptions(zoneIdOf(pid) || '')}</select></label>
+      <p style="margin:0 0 8px"><b>Está en:</b> ${zoneById(zoneIdOf(pid)) ? `zona ${esc(zoneById(zoneIdOf(pid)).route_order)} · ${esc(zoneById(zoneIdOf(pid)).name)}` : 'sin clasificar'}</p>
+      <label class="field"><span>Cambiar a la zona</span><select data-to aria-label="Cambiar a la zona">${zoneOptions(zoneIdOf(pid) || '')}</select></label>
       <div class="row" style="margin-top:10px">
         <button type="button" class="btn small primary" data-do-move>Mover</button>
         ${manual ? '<button type="button" class="btn small ghost" data-do-restore>Restaurar zona automática</button>' : ''}

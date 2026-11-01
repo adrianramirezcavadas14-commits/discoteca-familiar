@@ -66,3 +66,13 @@ export function uuid() {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 export const isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v));
+
+/**
+ * Nombre normalizado de una receta: el MISMO criterio que compra.norm_key() en la base de datos
+ * (sin mayúsculas, tildes ni signos; la ñ se conserva). Evita duplicar «Lentejas» y «lentejas ».
+ */
+export function recipeKey(s) {
+  return String(s ?? '').toLowerCase()
+    .replace(/[áàâäã]/g, 'a').replace(/[éèêë]/g, 'e').replace(/[íìîï]/g, 'i').replace(/[óòôöõ]/g, 'o').replace(/[úùûü]/g, 'u').replace(/ç/g, 'c')
+    .replace(/[^a-z0-9ñ]+/g, ' ').trim();
+}

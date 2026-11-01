@@ -163,6 +163,15 @@ button.owner-pick:hover { filter: brightness(1.06); box-shadow: 0 0 0 2px #fff, 
 /* Miniaturas y portadas */
 .thumb { display: block; width: 40px; aspect-ratio: 2 / 3; border-radius: 6px; overflow: hidden; background: #f0e9dd; box-shadow: 0 2px 6px #4b3b2626; }
 .thumb img, .cover-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* v12 · Miniaturas: portada completa, sin recortar ni ampliar (también en Safari/iPad).
+   En Safari el height:100% de una imagen dentro de una caja con aspect-ratio no siempre se resuelve
+   y la imagen se pintaba a su tamaño propio, recortada por overflow: hidden (efecto «zoom»).
+   Con la imagen posicionada en absoluto ocupa exactamente la caja y object-fit: contain la ajusta. */
+.thumb { position: relative; height: auto; }
+.thumb::before { content: ""; display: block; padding-top: 150%; }
+.thumb > .cover-img, .thumb > img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: contain; object-position: center; transform: none; background: #f0e9dd; }
+.thumb > .cover-fallback { position: absolute; inset: 0; }
+@media (min-width: 761px) { .books-table .c-cover { width: 70px; } .books-table .c-cover .thumb { width: 46px; } }
 .cover-fallback { width: 100%; height: 100%; display: grid; place-items: center; align-content: center; gap: 6px; padding: 8%; text-align: center; color: #fff; background: linear-gradient(150deg, var(--yellow), var(--coral) 55%, var(--mint)); font-weight: 900; overflow: hidden; }
 .cover-fallback .cf-icon { font-size: 1.6em; line-height: 1; }
 .cover-fallback .cf-title { font-size: .8em; line-height: 1.15; text-shadow: 0 1px 2px #0003; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
@@ -807,3 +816,30 @@ button.leg:hover { background: #efe8dc; }
 .pend-add .add-btn.scan { background: var(--coral); color: #fff; }
 .not-home { font-style: normal; color: #b26a00; font-weight: 850; }
 @media (max-width: 760px) { .pend-add { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); } .pend-add .add-btn { padding: 9px 6px; font-size: 13px; } }
+
+/* ---------- v12: ordenación del buscador ---------- */
+.count-row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
+.sort-wrap { position: relative; flex: 0 0 auto; }
+.sort-btn { display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; font: inherit; font-weight: 800; color: var(--ink); cursor: pointer; white-space: nowrap; min-height: 40px; }
+.sort-btn[aria-expanded="true"] { background: #fff4db; border-color: #f1c76b; }
+.sort-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; min-width: 240px; background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 14px 34px #24304733; padding: 6px; display: grid; gap: 2px; }
+.sort-menu[hidden] { display: none; }
+.sort-menu button { display: flex; align-items: center; gap: 8px; text-align: left; border: 0; background: transparent; border-radius: 11px; padding: 10px 12px; font: inherit; font-weight: 750; color: var(--ink); cursor: pointer; min-height: 44px; }
+.sort-menu button::before { content: ""; width: 16px; flex: 0 0 16px; text-align: center; }
+.sort-menu button.active { background: #fff4db; }
+.sort-menu button.active::before { content: "✓"; font-weight: 900; color: #c07a00; }
+.sort-menu button:hover, .sort-menu button:focus-visible { background: #f6efe2; outline: none; }
+@media (max-width: 760px) { .count-row { width: 100%; } .sort-menu { left: 0; right: auto; } .sort-btn { padding: 6px 10px; font-size: 12px; min-height: 34px; } }
+
+/* ---------- v12: libros leídos por año con la portada entera y su valoración ---------- */
+.mc-item { display: grid; gap: 6px; align-content: start; justify-items: center; min-width: 0; }
+.month-covers[data-kind="read"] .mc-cover { position: relative; background: #f4eee3; }
+.month-covers[data-kind="read"] .mc-cover::before { content: ""; display: block; padding-top: 150%; }
+.month-covers[data-kind="read"] .mc-cover { aspect-ratio: auto; height: auto; }
+.month-covers[data-kind="read"] .mc-cover > img, .month-covers[data-kind="read"] .mc-cover > .cover-fallback { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: center; }
+.mc-stars { display: flex; justify-content: center; min-height: 16px; max-width: 100%; }
+.mc-stars .stars { gap: 1px; }
+.mc-stars .star, .mc-stars .star svg { width: 15px; height: 15px; }
+.mc-stars.none { color: var(--muted); font-size: 11px; font-weight: 800; }
+@media (max-width: 760px) { .mc-stars .star, .mc-stars .star svg { width: 13px; height: 13px; } }
+@media (max-width: 380px) { .mc-stars .star, .mc-stars .star svg { width: 11px; height: 11px; } }

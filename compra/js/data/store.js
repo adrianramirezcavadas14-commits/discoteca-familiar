@@ -48,7 +48,14 @@ export const S = {
   session: null,              // { session, results: Map(list_item_id → result) }
   queue: [],
   sync: { last: null, active: null, stale: false, intervalHours: 12, lastFailed: null, checkedAt: null },
-  lastSummary: null
+  lastSummary: null,
+  // v1.2 · pendientes de revisar, «Pendientes no urgentes» y menú semanal (ver data/plans.js)
+  flags: new Map(),           // productId → { note, flagged_by, flagged_at }
+  backlog: new Map(),         // productId → { id, quantity, notes, updated_at }
+  recipes: new Map(),         // recipeId → receta
+  menu: new Map(),            // entryId → entrada del menú
+  menuWeeks: new Set(),       // lunes (AAAA-MM-DD) ya descargados
+  plansError: ''
 };
 
 /* ---------- Avisos de cambio a la interfaz ---------- */

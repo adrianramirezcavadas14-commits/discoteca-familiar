@@ -48,11 +48,12 @@ async function newContext(viewport, { offline = false } = {}) {
   await ctx.route('**/compra/supabase-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: `window.DESPENSA_SUPABASE = { url: '${stack.apiBase}', publishableKey: '${stack.publishable}' };` }));
   await ctx.route(/cdn\.jsdelivr\.net\/npm\/@supabase|unpkg\.com\/@supabase/, (r) => r.fulfill({ contentType: 'text/javascript', body: SUPABASE_UMD }));
   await ctx.route('https://prod-mercadona.imgix.net/**', (r) => r.fulfill({ contentType: 'image/svg+xml', headers: { 'Access-Control-Allow-Origin': '*' }, body: productSvg(r.request().url()) }));
+  await ctx.route(/^https:\/\/(upload\.wikimedia\.org|storage\.despensa\.test)\//, (r) => r.fulfill({ contentType: 'image/svg+xml', body: productSvg(`test${r.request().url().length}`) }));
   if (offline) await ctx.setOffline(true);
   return ctx;
 }
 function watch(page, label) {
-  page.on('pageerror', (e) => consoleErrors.push(`[${label}] pageerror: ${e.message}`));
+  page.on("pageerror", (e) => consoleErrors.push(`[${label}] pageerror: ${e.message} ${String(e.stack || "").split("\n").slice(0, 4).join(" | ")}`));
   page.on('console', (m) => {
     if (m.type() !== 'error') return;
     const t = m.text();
@@ -195,6 +196,7 @@ try {
     assert.equal(n[0].n, 2);
   });
 
+
   await step('Persistencia: recargar sin guardar no pierde cambios', async () => {
     await page.click('#page-lista .zn-arrow.next');
     await page.waitForSelector('#page-lista .pcard');
@@ -212,6 +214,145 @@ try {
       if (i === 39) assert.fail('el cambio no llegó a Supabase');
     }
   });
+
+  await step('Buscador universal en el mapa: zona actual y cambio de zona guardado para todos', async () => {
+    await page.goto(`${stack.webBase}/compra/#mapa`);
+    await page.waitForSelector('#page-mapa [data-finder] [data-fd-q]');
+    await page.fill('#page-mapa [data-fd-q]', 'ACEITE');
+    await page.waitForSelector('#page-mapa .fd-row');
+    const firstPid = await page.getAttribute('#page-mapa .fd-row', 'data-pid');
+    const pillBefore = await page.textContent(`#page-mapa .fd-row[data-pid="${firstPid}"] .zone-pill`);
+    assert.match(pillBefore, /9/, `muestra la zona actual (${pillBefore})`);
+    await shot(page, '03c-buscador-mapa');
+    await page.click(`#page-mapa .fd-row[data-pid="${firstPid}"] [data-fd-open]`);
+    await page.waitForSelector('#productModal.open [data-to]');
+    assert.match(await page.textContent('#productModal'), /Está en: zona 9/);
+    await page.selectOption('#productModal [data-to]', { label: '5 · Charcutería y platos preparados' });
+    await page.click('#productModal [data-do-move]');
+    await page.waitForFunction((pid) => /5/.test(document.querySelector(`#page-mapa .fd-row[data-pid="${pid}"] .zone-pill`)?.textContent || ''), firstPid);
+    assert.equal((await q('select count(*)::int n from compra.product_zone_overrides where product_id = $1', [firstPid]))[0].n, 1, 'guardado en la base de datos');
+    assert.equal(await page.inputValue('#page-mapa [data-fd-q]'), 'ACEITE', 'la búsqueda se conserva');
+    await page.click(`#page-mapa .fd-row[data-pid="${firstPid}"] [data-fd-open]`);
+    await page.click('#productModal [data-do-restore]');
+    await page.click('#dialogModal .btn.primary').catch(() => {});
+    await page.waitForFunction((pid) => /9/.test(document.querySelector(`#page-mapa .fd-row[data-pid="${pid}"] .zone-pill`)?.textContent || ''), firstPid);
+    assert.equal((await q('select count(*)::int n from compra.products where external_id like $1', ['%']))[0].n > 0, true, 'no se crean productos');
+  });
+
+  await step('Lista: buscador único, «Pendientes no urgentes», pendientes de revisar y mover sin duplicar', async () => {
+    await page.goto(`${stack.webBase}/compra/#lista`);
+    await page.waitForSelector('#page-lista [data-finder] [data-fd-q]');
+    assert.equal(await page.locator('#page-lista [data-fd-q]').count(), 1, 'un solo buscador universal');
+    await page.fill('#page-lista [data-fd-q]', 'mayonesa');
+    await page.waitForSelector('#page-lista .fd-row');
+    const pid = await page.getAttribute('#page-lista .fd-row', 'data-pid');
+    await page.click(`#page-lista .fd-row[data-pid="${pid}"] [data-fd-later]`);
+    await page.waitForFunction(() => /No urgente · 1/.test(document.querySelector('#page-lista .fd-row')?.textContent || ''));
+    await page.click(`#page-lista .fd-row[data-pid="${pid}"] [data-fd-later]`);
+    await page.waitForFunction(() => /No urgente · 2/.test(document.querySelector('#page-lista .fd-row')?.textContent || ''));
+    assert.deepEqual(await q('select quantity from compra.backlog_items where product_id = $1', [pid]), [{ quantity: 2 }]);
+    await page.click(`#page-lista .fd-row[data-pid="${pid}"] [data-fd-flag]`);
+    await page.waitForFunction(() => /Pendiente de revisar/.test(document.querySelector('#page-lista .fd-row')?.textContent || ''));
+    assert.equal((await q('select count(*)::int n from compra.product_review_flags where product_id = $1', [pid]))[0].n, 1);
+    assert.equal((await q(`select count(*)::int n from compra.shopping_list_items i join compra.shopping_lists l on l.id = i.list_id where l.status = 'draft' and i.product_id = $1`, [pid]))[0].n, 0, 'marcar no añade a la lista');
+    await page.click(`#page-lista .fd-row[data-pid="${pid}"] [data-fd-main]`);
+    await page.waitForFunction(() => /En la lista · 1/.test(document.querySelector('#page-lista .fd-row')?.textContent || ''));
+    await shot(page, '05b-buscador-lista');
+    // Pasar de «No urgentes» a la lista principal: 1 + 2 = 3 y desaparece de «No urgentes»
+    await page.click('#page-lista [data-backlog]');
+    await page.waitForSelector(`#panelBody [data-move-to="main"][data-pid="${pid}"]`);
+    await page.click(`#panelBody [data-move-to="main"][data-pid="${pid}"]`);
+    await page.waitForFunction((p) => !document.querySelector(`#panelBody [data-move-to="main"][data-pid="${p}"]`), pid);
+    assert.deepEqual(await q(`select i.quantity from compra.shopping_list_items i join compra.shopping_lists l on l.id = i.list_id where l.status = 'draft' and i.product_id = $1`, [pid]), [{ quantity: 3 }]);
+    assert.equal((await q('select count(*)::int n from compra.backlog_items where product_id = $1', [pid]))[0].n, 0);
+    // Y de vuelta desde la lista principal
+    await page.click('#panelBody [data-tab-main]');
+    await page.waitForSelector(`#panelBody [data-move-to="backlog"][data-pid="${pid}"]`);
+    await page.click(`#panelBody [data-move-to="backlog"][data-pid="${pid}"]`);
+    await page.waitForFunction((p) => !document.querySelector(`#panelBody [data-move-to="backlog"][data-pid="${p}"]`), pid);
+    assert.deepEqual(await q('select quantity from compra.backlog_items where product_id = $1', [pid]), [{ quantity: 3 }]);
+    assert.equal((await q(`select count(*)::int n from compra.shopping_list_items i join compra.shopping_lists l on l.id = i.list_id where l.status = 'draft' and i.product_id = $1`, [pid]))[0].n, 0);
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('#page-lista .backlog-card .backlog-row');
+  });
+
+  await step('Zona: todos los productos sin «Ver más» y cabecera fija al bajar', async () => {
+    await page.goto(`${stack.webBase}/compra/#lista`);
+    await page.click('#page-lista .zone-shape.main[aria-label^="Zona 9:"]');
+    await page.waitForSelector('#page-lista .prep-sticky .zone-nav');
+    assert.equal(await page.locator('#page-lista [data-more]').count(), 0, 'sin botón «Ver más»');
+    const shown = await page.locator('#page-lista [data-more-results] .pcard').count();
+    const said = Number((await page.textContent('#page-lista [data-more-count]')).replace(/\D/g, ''));
+    assert.equal(shown, said, `se ven todos (${shown} de ${said})`);
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(250);
+    const box = await page.locator('#page-lista .prep-sticky .zone-nav').boundingBox();
+    assert.ok(box && box.y >= 0 && box.y < 260, `la cabecera de la zona sigue visible (${box?.y})`);
+    assert.ok(await page.locator('#page-lista .prep-sticky .zone-nav [data-map]').isVisible(), 'salir al mapa siempre accesible');
+    await shot(page, '05c-zona-cabecera-fija');
+    const flag = page.locator('#page-lista [data-more-results] .flag-btn').first();
+    await flag.click();
+    await page.waitForSelector('#page-lista [data-more-results] .flag-btn.on');
+  });
+
+  await step('Novedades: «Pendientes de revisar» con su zona y desmarcar', async () => {
+    await page.goto(`${stack.webBase}/compra/#novedades`);
+    await page.waitForSelector('#page-novedades [data-tab="review"]');
+    await page.click('#page-novedades [data-tab="review"]');
+    await page.waitForSelector('#page-novedades .review-item');
+    const before = await page.locator('#page-novedades .review-item').count();
+    assert.equal(before, (await q('select count(*)::int n from compra.product_review_flags'))[0].n);
+    assert.ok(await page.locator('#page-novedades .review-item .zone-pill').count() >= 1, 'muestra la zona');
+    await shot(page, '13b-pendientes-revisar');
+    await page.locator('#page-novedades [data-unflag]').first().click();
+    await page.waitForFunction((n) => document.querySelectorAll('#page-novedades .review-item').length === n - 1, before);
+    assert.equal((await q('select count(*)::int n from compra.product_review_flags'))[0].n, before - 1);
+  });
+
+  await step('Menú semanal: semanas, comidas y cenas por separado y recetas con imagen', async () => {
+    await page.goto(`${stack.webBase}/compra/#menu`);
+    await page.waitForSelector('#page-menu .week-nav');
+    const label = await page.textContent('#page-menu .wk-current');
+    assert.match(label, /Semana \d+/);
+    assert.equal(await page.locator('#page-menu .menu-day').count(), 7);
+    await page.click('#page-menu [data-week="1"]');
+    await page.waitForSelector('#page-menu [data-week="0"]');
+    await page.click('#page-menu [data-week="-1"]');
+    await page.waitForFunction(() => /Semana actual/.test(document.querySelector('#page-menu .wk-current').textContent));
+    const day = await page.getAttribute('#page-menu .menu-day:first-child [data-slot="comida"]', 'data-add');
+    await page.click('#page-menu .menu-day:first-child [data-slot="comida"]');
+    await page.waitForSelector('#panelBody [data-rq]');
+    await page.fill('#panelBody [data-rq]', 'Lentejas con chorizo');
+    await page.press('#panelBody [data-rq]', 'Enter');
+    await page.waitForSelector('#panelBody .image-choice').catch(async (e) => { await shot(page, 'debug-menu'); console.error('Panel:', await page.textContent('#panelBody').catch(() => '?')); throw e; });
+    assert.equal(await page.locator('#panelBody .image-choice').count(), 5, 'primero 5 imágenes');
+    assert.ok(await page.locator('#panelBody [data-isave]').isDisabled(), 'sin imagen no se puede guardar');
+    await page.click('#panelBody [data-imore]');
+    await page.waitForFunction(() => document.querySelectorAll('#panelBody .image-choice').length === 10);
+    await page.locator('#panelBody .image-choice').nth(6).click();
+    await shot(page, '17-menu-imagen');
+    await page.click('#panelBody [data-isave]');
+    await page.waitForSelector('#page-menu .menu-entry');
+    const r = await q('select name, image_url, category from compra.recipes');
+    assert.equal(r.length, 1);
+    assert.match(r[0].image_url, /^https:\/\//);
+    assert.equal(r[0].category, 'comida');
+    assert.equal((await q('select count(*)::int n from compra.menu_entries where menu_date = $1 and slot = $2', [day, 'comida']))[0].n, 1);
+    // En la cena no se sugiere la receta de comida; escrita igual se reutiliza sin volver a buscar imágenes
+    const searches = stack.recipeSearches.length;
+    await page.click('#page-menu .menu-day:first-child [data-slot="cena"]');
+    await page.waitForSelector('#panelBody [data-rlist]');
+    assert.equal(await page.locator('#panelBody .recipe-card').count(), 0, 'las cenas no muestran recetas de comida');
+    await page.fill('#panelBody [data-rq]', 'LENTEJAS con chorízo');
+    await page.waitForFunction(() => /ya existe/.test(document.querySelector('#panelBody [data-rhint]').textContent));
+    await page.click('#panelBody [data-addnew]');
+    await page.waitForFunction(() => document.querySelectorAll('#page-menu .menu-day:first-child .menu-entry').length === 2);
+    assert.equal(stack.recipeSearches.length, searches, 'no se repite la búsqueda de imágenes');
+    const rr = await q('select category from compra.recipes');
+    assert.deepEqual(rr, [{ category: 'ambas' }], 'una sola receta, ahora de comida y cena');
+    await shot(page, '17b-menu-semana');
+  });
+
 
   await step('Cerrar la lista (carro) y pasar a «¡A por la compra!»', async () => {
     await page.goto(`${stack.webBase}/compra/#lista`);

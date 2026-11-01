@@ -2,7 +2,7 @@
    - Solo guarda en caché archivos propios de Hogar (mismo origen) con respuesta correcta.
    - No toca las peticiones a Supabase (ni a sus funciones), Open Library, Google Books, imágenes de Mercadona ni CDN: van siempre a la red.
    - Al cambiar CACHE se eliminan solo las cachés antiguas de Hogar. */
-const CACHE = 'hogar-v9-despensa-20261031';
+const CACHE = 'hogar-v10-20261101';
 const NETWORK_WAIT = 3500; // ms antes de usar la copia guardada si la red va muy lenta
 const CORE = [
   './',
@@ -34,18 +34,22 @@ const CORE = [
   './compra/js/core/stats.js',
   './compra/js/core/queue.js',
   './compra/js/core/map-layout.js',
+  './compra/js/core/week.js',
   './compra/js/data/idb.js',
   './compra/js/data/api.js',
   './compra/js/data/store.js',
+  './compra/js/data/plans.js',
   './compra/js/ui/dom.js',
   './compra/js/ui/nav.js',
   './compra/js/ui/map.js',
   './compra/js/ui/cards.js',
   './compra/js/ui/sync.js',
   './compra/js/ui/review.js',
+  './compra/js/ui/finder.js',
   './compra/js/pages/home.js',
   './compra/js/pages/map-page.js',
   './compra/js/pages/prepare.js',
+  './compra/js/pages/menu.js',
   './compra/js/pages/shop.js',
   './compra/js/pages/tickets.js',
   './compra/js/pages/stats.js',

@@ -145,3 +145,29 @@ El límite de 40 fichas detalladas se aplicaba por tramo y no por sincronizació
 * **Ajustes**: quitado el apartado de la clave. Aviso cuando falta el código postal o el catálogo es de otra tienda; al guardar un código postal nuevo se descarga el surtido de esa tienda.
 * `compra-sync`: si cambia el código postal, el catálogo se considera caducado y se puede actualizar al momento.
 * `service-worker.js` (raíz): caché `hogar-v9-despensa-20261031`.
+
+## Versión 1.2 · 01/11/2026 · Discos, Libros y Despensa
+
+### Discos (`index.html` de la raíz)
+* **Fallo de conexión en el iPad (causa localizada y reproducida con WebKit):** la colección completa se copiaba en `localStorage` *dentro* de la conexión. Safari/WebKit cuenta 2 bytes por carácter cuando el texto lleva caracteres como «—» (que la colección usa para «sin año»), así que su límite real es ~2,5 millones de caracteres, la mitad que en Chrome. Con una colección grande (por ejemplo, portadas subidas desde el dispositivo, guardadas como imagen dentro de la colección) la copia lanzaba `QuotaExceededError` y la app mostraba «Error de conexión» aunque la base de datos respondía. Ahora la copia local nunca impide conectar: va completa a IndexedDB y, si cabe, ligera a `localStorage`.
+* Librería de Supabase fijada (2.100.0, como la biblioteca y la despensa) con CDN de reserva y tiempo máximo; antes se cargaba «@2» sin versión ni reserva.
+* Todos los accesos a `localStorage` protegidos (Safari con almacenamiento bloqueado ya no rompe el arranque).
+* **Bloqueo de escrituras sin sincronización:** mientras no se haya leído la colección de la base de datos (o si se pierde la conexión) no se puede guardar, editar, eliminar ni tocar la lista de deseos; las funciones lo comprueban por dentro, no solo los botones. Aviso visible con «Reintentar»; se desbloquea solo al volver a sincronizar. Si un guardado falla, se deshace el cambio (no queda nada «guardado solo en este móvil»).
+* Registro en consola con el prefijo `[Discos]` (sin claves ni datos personales).
+* Las portadas elegidas del dispositivo se reducen (máximo 700 px) antes de guardarlas.
+* **Ordenación** junto al contador: álbum, artista o año, ascendente o descendente (por defecto, artista ascendente). Se guarda en el dispositivo.
+
+### Libros (`libros/`)
+* **Ordenación** junto al contador: título, autor o año (por defecto, autor ascendente), guardada en el dispositivo.
+* **Libros leídos por año:** al elegir un año, debajo de los meses salen las portadas completas agrupadas por mes, ordenadas por fecha, con la valoración en estrellas (enteras, medias y vacías; «Sin valorar» si no la hay).
+* **Portadas en el iPad:** se ven enteras (`object-fit: contain` con la imagen posicionada dentro de la caja; Safari no siempre resolvía `height: 100%` dentro de una caja con `aspect-ratio`).
+
+### Despensa (`compra/`)
+* Buscador universal en el mapa (ver o cambiar la zona del producto) y en la preparación de la lista (añadir a la lista principal, a «Pendientes no urgentes» o marcar «Pendiente de revisar»).
+* «Pendientes de revisar» (marca 🚩 junto a «+ Añadir») y apartado propio en *Lo nuevo del súper*.
+* «Pendientes no urgentes»: segunda lista siempre abierta; mover productos entre listas sin duplicar.
+* Cada zona muestra todos sus productos (sin «Ver más») y la cabecera de la zona queda fija al bajar.
+* **Menú semanal** nuevo, con recetas de comida y de cena por separado e imagen obligatoria (función `compra-recetas`).
+* *El rincón de los números*: sin filtros; una sola gráfica de líneas con la media acumulada del tiempo de compra de cada persona, compra a compra.
+* Migración `20261101100000_compra_menu_y_pendientes.sql` (incluida en `INSTALAR_TODO.sql`).
+* `service-worker.js`: caché `hogar-v10-20261101` y archivos nuevos de la despensa.

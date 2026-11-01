@@ -121,3 +121,11 @@ npm run test:e2e      # navegador real contra PostgreSQL + PostgREST locales
 ## Si faltan productos en el catálogo
 
 El surtido de Mercadona cambia según la tienda (aguas, marcas regionales…). Comprueba en *Ajustes* que está el código postal y que la fuente es la «tienda online de Mercadona» con un almacén. Si la fuente es la copia de datania, la tienda online no respondió y es un surtido general.
+
+## Versión 1.2: pendientes, segunda lista y menú semanal
+
+* **Pendientes de revisar** (`compra.product_review_flags`): se marcan con 🚩 en «Apunta lo que falta» o desde el buscador; aparecen en *Lo nuevo del súper → Pendientes de revisar* con su zona y se quitan con «✓ Revisado».
+* **Pendientes no urgentes** (`compra.backlog_items`): segunda lista siempre abierta. Mover entre listas lo hace `compra.move_between_lists()` en una sola transacción (suma cantidades si el producto ya estaba; nunca lo marca como comprado). Antes de mover, la app envía los cambios pendientes de la lista principal.
+* **Menú semanal** (`compra.recipes`, `compra.menu_entries`): cada receta tiene un nombre normalizado único (`compra.norm_key`, igual que `recipeKey()` en `js/core/text.js`) y una imagen obligatoria. Comida y cena se guardan aparte (`for_lunch`, `for_dinner`; `category` = comida, cena o ambas).
+* Estas tres secciones necesitan conexión para cambiar algo (sin conexión se ven con la copia guardada en el dispositivo, sin poder editar).
+* Imágenes de recetas: función `compra-recetas` (ver `INSTALACION.md`, paso 5). La misma búsqueda se guarda 30 minutos en el servidor y en el navegador, y al reutilizar una receta nunca se vuelve a buscar.

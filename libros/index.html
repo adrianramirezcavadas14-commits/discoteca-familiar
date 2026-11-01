@@ -12,7 +12,7 @@
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="icon" href="../icons/icon-192.png">
 <link rel="apple-touch-icon" href="../icons/icon-192.png">
-<link rel="stylesheet" href="./styles.css?v=11.6">
+<link rel="stylesheet" href="./styles.css?v=12">
 </head>
 <body>
 
@@ -66,7 +66,20 @@
   <section class="page active" id="search">
     <div class="hero">
       <div><h2>¿Qué buscamos hoy?</h2><p>Busca por título, autor, ISBN, editorial o género.</p></div>
-      <div class="count" id="bookCount">0 libros</div>
+      <div class="count-row">
+        <div class="count" id="bookCount">0 libros</div>
+        <div class="sort-wrap" id="bookSortWrap">
+          <button type="button" class="sort-btn" id="bookSortBtn" aria-haspopup="true" aria-expanded="false" aria-controls="bookSortMenu"><span aria-hidden="true">⇅</span> <span id="bookSortLabel">Autor ↑</span></button>
+          <div class="sort-menu" id="bookSortMenu" role="menu" aria-label="Ordenar los libros" hidden>
+            <button type="button" role="menuitemradio" aria-checked="false" data-sort="title-asc">Nombre del libro: ascendente</button>
+            <button type="button" role="menuitemradio" aria-checked="false" data-sort="title-desc">Nombre del libro: descendente</button>
+            <button type="button" role="menuitemradio" aria-checked="false" data-sort="author-asc">Autor: ascendente</button>
+            <button type="button" role="menuitemradio" aria-checked="false" data-sort="author-desc">Autor: descendente</button>
+            <button type="button" role="menuitemradio" aria-checked="false" data-sort="year-asc">Año: ascendente</button>
+            <button type="button" role="menuitemradio" aria-checked="false" data-sort="year-desc">Año: descendente</button>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="search search-wrap">
       <input id="q" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="🔎  Escribe un título, autor o ISBN…" aria-label="Buscar en la biblioteca">
@@ -416,7 +429,7 @@
 
 <!-- Supabase y el lector de códigos se cargan desde app.js (con CDN alternativo y tiempo máximo) para que la pantalla de carga nunca se quede en 0 %. -->
 <script defer src="./supabase-config.js"></script>
-<script defer src="./app.js?v=11.6"></script>
+<script defer src="./app.js?v=12"></script>
 <script>
   // Red de seguridad: si app.js no llega a arrancar (sin cobertura), se ofrece recargar en vez de quedarse en 0 %.
   setTimeout(function () {

@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.compra-tickets]
 verify_jwt = false
+
+[functions.compra-recetas]
+verify_jwt = false

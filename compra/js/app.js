@@ -18,8 +18,10 @@ import * as tickets from './pages/tickets.js';
 import * as stats from './pages/stats.js';
 import * as changes from './pages/changes.js';
 import * as settings from './pages/settings.js';
+import * as menu from './pages/menu.js';
+import { refreshPlans, loadPlansLocal, refreshMenu } from './data/plans.js';
 
-const PAGES = { inicio: home, mapa: mapPage, lista: prepare, compra: shop, tickets, numeros: stats, novedades: changes, ajustes: settings };
+const PAGES = { inicio: home, mapa: mapPage, lista: prepare, menu, compra: shop, tickets, numeros: stats, novedades: changes, ajustes: settings };
 const route = { page: null, params: [] };
 
 /* ---------- Navegación por #hash (funciona con el botón «atrás») ---------- */
@@ -174,6 +176,8 @@ function startRealtime() {
         if (w.includes('zones')) { await refreshOverrides(); }
         if (w.includes('catalog')) { await refreshProducts(); recomputeZones(); rerender('catalog'); }
         if (w.includes('receipts')) rerender('receipts');
+        if (w.includes('flags') || w.includes('backlog')) await refreshPlans();
+        if (w.includes('menu')) await refreshMenu();
       } catch (e) { console.warn('Aviso de otro dispositivo no aplicado', e); }
     }, 600);
   });
@@ -187,6 +191,7 @@ async function silentRefresh() {
     await processQueue();
     await refreshLists();
     await refreshFrequency();
+    await refreshPlans();
     S.serverOk = true;
     updateNet();
   } catch (e) {
@@ -257,6 +262,7 @@ async function connect(silent = false) {
     lastRefresh = Date.now();
     updateNet();
     startRealtime();
+    await refreshPlans();            // pendientes de revisar y «Pendientes no urgentes» (v1.2)
     // Lo que quedó sin enviar en una sesión anterior (pestaña cerrada) se envía ahora.
     if (S.draft.dirty.size) flushDraft().catch(() => {}); else processQueue();
     await runEntrySync();            // comprobación del catálogo en cada entrada (con progreso)
@@ -301,7 +307,7 @@ async function boot() {
   setImageResolver(thumbFor);
   initDevice();
   bindShell();
-  try { await loadLocal(); } catch (e) { console.warn('Sin caché local', e); }
+  try { await loadLocal(); await loadPlansLocal(); } catch (e) { console.warn('Sin caché local', e); }
   updateNet();
   connect();
   if ('serviceWorker' in navigator) {

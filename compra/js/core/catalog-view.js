@@ -72,3 +72,22 @@ export function subcategoriesOf(list) {
 
 /** Carga progresiva: primeras «page × size» posiciones. */
 export const pageSlice = (list, page, size) => list.slice(0, Math.max(1, page) * size);
+
+/**
+ * Buscador universal: palabras sin tildes ni mayúsculas, coincidencias parciales.
+ * Orden: primero los que EMPIEZAN por lo escrito, después los que lo llevan en el nombre
+ * y por último los que lo llevan en el formato, la marca o la categoría.
+ */
+export function findProducts(q, list, isOk = () => true) {
+  const words = norm(q).split(' ').filter(Boolean);
+  if (!words.length) return [];
+  const out = [];
+  for (const p of list) {
+    if (!isOk(p)) continue;
+    const name = norm(p.name);
+    const inName = words.every((w) => name.includes(w));
+    if (!inName && !words.every((w) => (p._hay || haystack(p)).includes(w))) continue;
+    out.push({ p, rank: name.startsWith(words[0]) ? 0 : inName ? 1 : 2 });
+  }
+  return out.sort((a, b) => a.rank - b.rank || collator.compare(a.p.name, b.p.name)).map((x) => x.p);
+}

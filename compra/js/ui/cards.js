@@ -37,9 +37,9 @@ export function stepperHtml(pid, qty, { label = '' } = {}) {
 }
 
 /** Tarjeta de «Los de siempre» y «Más productos». */
-export function prepCard(p, qty, freq = 0) {
+export function prepCard(p, qty, freq = 0, { flagged = false } = {}) {
   const sub = p.subsubcategory_name || p.subcategory_name || p.category_name || '';
-  return `<article class="pcard${qty ? ' in' : ''}" data-pid="${esc(p.id)}">
+  return `<article class="pcard${qty ? ' in' : ''}${flagged ? ' flagged' : ''}" data-pid="${esc(p.id)}">
     <div class="badges">${newBadge(p)}${availabilityPill(p)}</div>
     <button type="button" class="pcard-img" data-detail="${esc(p.id)}" aria-label="Ver ficha de ${esc(p.name)}">${productImg(p)}</button>
     <div class="pcard-body">
@@ -47,7 +47,7 @@ export function prepCard(p, qty, freq = 0) {
       <small class="pcat">${esc(sub)}${freq ? ` · ${plural(freq, 'lista', 'listas')}` : ''}</small>
       ${p.format_label ? `<small class="pfmt">${esc(p.format_label)}</small>` : ''}
       <div>${priceHtml(p)}</div>
-      <div class="qty">${qty ? stepperHtml(p.id, qty, { label: p.name }) : `<button type="button" class="add-btn" data-inc="${esc(p.id)}" aria-label="Añadir ${esc(p.name)} a la lista">+ Añadir</button>`}</div>
+      <div class="qty">${qty ? stepperHtml(p.id, qty, { label: p.name }) : `<button type="button" class="add-btn" data-inc="${esc(p.id)}" aria-label="Añadir ${esc(p.name)} a la lista">+ Añadir</button>`}<button type="button" class="flag-btn${flagged ? ' on' : ''}" data-flag="${esc(p.id)}" aria-pressed="${flagged}" aria-label="${flagged ? 'Quitar la marca de pendiente de revisar' : 'Marcar como pendiente de revisar'}: ${esc(p.name)}" title="${flagged ? 'Pendiente de revisar (toca para quitar)' : 'Marcar como pendiente de revisar'}"><span aria-hidden="true">🚩</span></button></div>
     </div>
   </article>`;
 }
@@ -111,7 +111,11 @@ export function openProductDetail(p, { extra = '', requested = null, zoneLine = 
 export function openPanel(title, html, { onClose } = {}) {
   const modal = $('#panelModal');
   $('#panelTitle').textContent = title;
-  $('#panelBody').innerHTML = html;
+  const body = $('#panelBody');
+  // El cuerpo del panel se reutiliza: se quitan los manejadores del panel anterior para que no actúen en este.
+  body.onclick = null;
+  body.onchange = null;
+  body.innerHTML = html;
   modal.querySelector('[data-close]').onclick = () => closeModal(modal);
   modal.onclick = (e) => { if (e.target === modal) closeModal(modal); };
   openModal(modal, { onClose });

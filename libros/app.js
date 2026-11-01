@@ -107,6 +107,10 @@
   const arr = (v) => (Array.isArray(v) ? v : (v == null || v === '' ? [] : [v]));
   const plural = (n, one, many) => `${n.toLocaleString('es-ES')} ${n === 1 ? one : many}`;
   const collator = new Intl.Collator('es', { sensitivity: 'base', numeric: true });
+  const BOOK_SORT_KEY = 'bibliotecaOrden';
+  function readBookSort() {
+    try { const v = localStorage.getItem(BOOK_SORT_KEY); return /^(title|author|year)-(asc|desc)$/.test(v || '') ? v : 'author-asc'; } catch { return 'author-asc'; }
+  }
 
   function uuid() {
     if (window.crypto?.randomUUID) return crypto.randomUUID();
@@ -350,7 +354,7 @@
     books: [], ratings: [], wishes: [], journeys: [], sessions: [], pending: [],
     bookMap: new Map(),
     page: 'search',
-    search: { q: '', owner: null, format: null, location: null, page: 1, filtered: [], highlight: null },
+    search: { q: '', owner: null, format: null, location: null, page: 1, filtered: [], highlight: null, sort: readBookSort() },
     form: { mode: 'new', editId: null, returnPage: 'search', wishId: null, owners: new Set(), location: null, format: null, meta: {}, cover: { url: '', path: null, blob: null, preview: '' }, choices: [] },
     detailId: null,
     rating: { bookId: null, person: FAMILY[0], value: 0, saved: null },
@@ -384,6 +388,35 @@
     return b;
   }
   const sortBooks = () => S.books.sort((a, b) => collator.compare(a._sort, b._sort));
+
+  /* ---------- Ordenación del buscador (la última elegida se guarda en este dispositivo) ---------- */
+  const BOOK_SORTS = {
+    'title-asc': ['Nombre del libro: ascendente', 'Título ↑'], 'title-desc': ['Nombre del libro: descendente', 'Título ↓'],
+    'author-asc': ['Autor: ascendente', 'Autor ↑'], 'author-desc': ['Autor: descendente', 'Autor ↓'],
+    'year-asc': ['Año: ascendente', 'Año ↑'], 'year-desc': ['Año: descendente', 'Año ↓']
+  };
+  /** Clave de orden: sin signos al principio («¡Hola!» va con la H) y vacía si no hay dato. */
+  const sortText = (v) => String(v ?? '').trim().replace(/^[^\p{L}\p{N}]+/u, '');
+  function sortBookList(list, mode = S.search.sort) {
+    const [field, dir] = String(mode).split('-');
+    const sign = dir === 'desc' ? -1 : 1;
+    const author = (b) => sortText(b.authors?.[0]);
+    const title = (b) => sortText(b.title);
+    const text = (x, y) => {
+      if (!x || !y) return x === y ? 0 : (x ? -1 : 1); // vacíos siempre al final
+      return sign * collator.compare(x, y);
+    };
+    return [...list].sort((a, b) => {
+      if (field === 'year') {
+        const ya = parseYear(a.published_year), yb = parseYear(b.published_year);
+        if (ya == null || yb == null) { if (ya !== yb) return ya == null ? 1 : -1; }
+        else if (ya !== yb) return sign * (ya - yb);
+        return collator.compare(author(a), author(b)) || collator.compare(title(a), title(b));
+      }
+      if (field === 'title') return text(title(a), title(b)) || collator.compare(author(a), author(b));
+      return text(author(a), author(b)) || collator.compare(title(a), title(b));
+    });
+  }
 
   function upsertLocal(list, row) {
     const i = list.findIndex((x) => idOf(x.id) === idOf(row.id));
@@ -812,6 +845,7 @@
       && (!owner || b.owners.includes(owner))
       && (!format || b.physical_format === format)
       && (!location || b.location === location));
+    S.search.filtered = sortBookList(S.search.filtered);
     if (!keepPage) S.search.page = 1;
     clearBtn.disabled = !S.search.q && !owner && !format && !location;
     renderTable();
@@ -880,6 +914,40 @@
       + `<button type="button" class="bookend next" data-move="1" aria-label="Página siguiente"${page === pages ? ' disabled' : ''}></button>`;
   }
 
+  function paintBookSort() {
+    $('#bookSortLabel').textContent = BOOK_SORTS[S.search.sort][1];
+    $('#bookSortBtn').setAttribute('aria-label', `Ordenar: ${BOOK_SORTS[S.search.sort][0]}`);
+    $$('#bookSortMenu [data-sort]').forEach((o) => { const on = o.dataset.sort === S.search.sort; o.setAttribute('aria-checked', String(on)); o.classList.toggle('active', on); });
+  }
+  function bindBookSort() {
+    const btn = $('#bookSortBtn'), menu = $('#bookSortMenu');
+    const open = (v) => {
+      menu.hidden = !v;
+      btn.setAttribute('aria-expanded', String(v));
+      if (v) menu.querySelector('[aria-checked="true"]')?.focus();
+    };
+    btn.addEventListener('click', (e) => { e.stopPropagation(); open(menu.hidden); });
+    menu.addEventListener('click', (e) => {
+      const o = e.target.closest('[data-sort]');
+      if (!o) return;
+      S.search.sort = o.dataset.sort;
+      try { localStorage.setItem(BOOK_SORT_KEY, S.search.sort); } catch { /* sin almacenamiento: dura hasta recargar */ }
+      paintBookSort();
+      open(false);
+      btn.focus();
+      applySearch();
+    });
+    menu.addEventListener('keydown', (e) => {
+      const items = [...menu.querySelectorAll('[data-sort]')];
+      const i = items.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+      else if (e.key === 'Escape') { open(false); btn.focus(); }
+    });
+    document.addEventListener('click', (e) => { if (!menu.hidden && !e.target.closest('#bookSortWrap')) open(false); });
+    paintBookSort();
+  }
+
   function bindExplore() {
     buildFilterChips();
     fitFilterRow();
@@ -905,6 +973,7 @@
       syncFilterChips();
       applySearch();
     });
+    bindBookSort();
     $('#pager').addEventListener('click', (e) => {
       const p = e.target.closest('[data-page]');
       const m = e.target.closest('[data-move]');
@@ -3469,7 +3538,25 @@
     items.filter((x) => !Number.isNaN(x.date?.getTime?.()) && x.date.getFullYear() === year).forEach((x) => byMonth[x.date.getMonth()].push(x));
     const groups = byMonth.map((list, i) => ({ i, list: list.sort((a, b) => a.date - b.date) })).filter((g) => g.list.length);
     if (!groups.length) return `<p class="mc-hint">No hay libros ${verb} en ${year}.</p>`;
-    return `<div class="month-covers" data-kind="${kind}"><h4 class="mc-title">Libros ${verb} en ${year}</h4>${groups.map((g) => `<section class="mc-month"><h5>${MONTHS[g.i]} <small>${g.list.length}</small></h5><div class="mc-grid">${g.list.map(({ book: b, date }) => `<button type="button" class="mc-cover" data-cover-book="${esc(b.id)}" title="${esc(b.title)} · ${esc(date.toLocaleDateString('es-ES'))}" aria-label="${esc(b.title)}">${coverHtml(b.cover_url, b.title)}</button>`).join('')}</div></section>`).join('')}</div>`;
+    // En los leídos, debajo de cada portada va la valoración de esa persona (solo si la hay; nunca un cero inventado).
+    const rated = kind === 'read' ? ratingMapFor(S.stats.person) : null;
+    const item = ({ book: b, date }) => {
+      const cover = `<button type="button" class="mc-cover" data-cover-book="${esc(b.id)}" title="${esc(b.title)} · ${esc(date.toLocaleDateString('es-ES'))}" aria-label="${esc(b.title)}${rated?.get(idOf(b.id)) ? ` · ${esc(fmtRating(rated.get(idOf(b.id))))}` : ''}">${coverHtml(b.cover_url, b.title)}</button>`;
+      if (!rated) return cover;
+      const r = rated.get(idOf(b.id));
+      return `<div class="mc-item">${cover}${r ? `<span class="mc-stars">${starsHtml(r, 'sm')}</span>` : '<span class="mc-stars none">Sin valorar</span>'}</div>`;
+    };
+    return `<div class="month-covers" data-kind="${kind}"><h4 class="mc-title">Libros ${verb} en ${year}</h4>${groups.map((g) => `<section class="mc-month"><h5>${MONTHS[g.i]} <small>${g.list.length}</small></h5><div class="mc-grid">${g.list.map(item).join('')}</div></section>`).join('')}</div>`;
+  }
+
+  /** Valoración de cada libro para una persona (0,5 a 5 en saltos de 0,5); los no valorados no aparecen. */
+  function ratingMapFor(person) {
+    const m = new Map();
+    for (const r of S.ratings) {
+      const v = Math.round(Number(r.rating) * 2) / 2;
+      if (r.person === person && Number.isFinite(v) && v >= 0.5 && v <= 5) m.set(idOf(r.book_id), v);
+    }
+    return m;
   }
 
   function purchasesData(owned) {

@@ -12,7 +12,7 @@ Nunca pongas la clave *secret* ni la *service_role* en ese archivo: la app se ni
 
 ## 2. Crear las tablas (migraciones)
 
-**Opción A · SQL Editor** (sin instalar nada): abre *SQL Editor → New query*, pega **todo** el archivo `compra/supabase/INSTALAR_TODO.sql` (son las siete migraciones juntas, en orden) y pulsa *Run*. Debe terminar con «Success».
+**Opción A · SQL Editor** (sin instalar nada): abre *SQL Editor → New query*, pega **todo** el archivo `compra/supabase/INSTALAR_TODO.sql` (son las ocho migraciones juntas, en orden) y pulsa *Run*. Debe terminar con «Success».
 
 Se puede ejecutar varias veces sin duplicar nada. Si un intento anterior se quedó a medias, no pasa nada: vuelve a ejecutarlo entero.
 
@@ -53,6 +53,15 @@ Desde la carpeta `compra/`:
 ```bash
 supabase functions deploy compra-sync --no-verify-jwt
 supabase functions deploy compra-tickets --no-verify-jwt
+supabase functions deploy compra-recetas --no-verify-jwt
+```
+
+`compra-recetas` busca las imágenes del **menú semanal** y guarda las fotos que se suban a mano. Sin configurar nada usa Wikimedia Commons y Openverse (imágenes con licencia libre, gratis y sin clave). Para buscar en **webs de recetas conocidas** (Recetas Gratis, Directo al Paladar, Cookpad…) crea una clave de la *Brave Search API* (plan con búsqueda de imágenes) y guárdala como secreto; nunca va en el navegador:
+
+```bash
+supabase secrets set BRAVE_SEARCH_API_KEY=tu_clave_de_brave
+# opcional: otra lista de webs de recetas (dominios separados por comas)
+supabase secrets set COMPRA_RECETAS_SITIOS=recetasgratis.net,directoalpaladar.com,cookpad.com
 ```
 
 `--no-verify-jwt` es necesario porque la app usa la *publishable key* (no es un JWT); cada función comprueba la clave familiar por su cuenta.
@@ -63,9 +72,11 @@ Opcional (recomendado), limitar desde qué web se puede llamar a las funciones:
 supabase secrets set COMPRA_ALLOWED_ORIGINS=https://TU_USUARIO.github.io
 ```
 
-## 6. Comprobar el bucket de tickets
+## 6. Comprobar los buckets
 
 La migración 4 crea el bucket **privado** `compra-tickets` (10 MB, JPG/PNG/WEBP/HEIC/PDF). Compruébalo en *Storage*: debe aparecer como *Private* y **sin políticas**. No hay que crear ninguna.
+
+La migración 8 crea el bucket **público** `compra-recetas` (3 MB, JPG/PNG/WEBP) para las fotos de recetas subidas a mano. Es público solo para poder ver las fotos; nadie puede subir ni borrar desde el navegador (solo la función `compra-recetas`).
 
 ## 7. Publicar en GitHub
 
@@ -100,7 +111,7 @@ Espera a que GitHub Pages publique y abre Hogar: aparecerá la tercera tarjeta.
 | Mensaje | Solución |
 |---|---|
 | «Supabase no expone el esquema compra» | Paso 3. |
-| «Faltan tablas o funciones» | Paso 2 (las siete migraciones, en orden). |
+| «Faltan tablas o funciones» | Paso 2 (las ocho migraciones, en orden). |
 | Pide una clave y no la habéis puesto | Ejecuta `select compra.clear_household_key();` |
 | «La función compra-sync no está desplegada» | Paso 5. La app funciona con el catálogo guardado. |
 | «El proyecto de Supabase está en pausa» | Reactívalo en el panel de Supabase y pulsa «Reintentar». No se pierde nada: los cambios esperan en el dispositivo. |

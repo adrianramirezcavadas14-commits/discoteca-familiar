@@ -105,3 +105,34 @@ export function deviationText(pct) {
   if (Math.abs(pct) < 1) return 'En su tiempo habitual';
   return pct < 0 ? `${Math.abs(pct).toLocaleString('es-ES', { maximumFractionDigits: 1 })} % menos que su media` : `${pct.toLocaleString('es-ES', { maximumFractionDigits: 1 })} % más que su media`;
 }
+
+/**
+ * Media acumulada del tiempo de compra, compra a compra.
+ * · Eje horizontal común: todas las compras válidas en orden cronológico real (1, 2, 3…),
+ *   así las líneas de cada persona se pueden comparar en la misma escala.
+ * · Cada persona tiene su propia media: suma de SUS tiempos hasta esa compra / número de SUS compras.
+ * · Se ignoran las compras sin duración válida (null, negativa o cero) o sin fecha.
+ * Devuelve { points: [{ x, sessionId, personId, at, minutes, avg, n }], byPerson: Map(personId → puntos) }.
+ */
+export function cumulativeAverageSeries(sessions) {
+  const valid = sessions
+    .filter((s) => s && s.ended_at && !Number.isNaN(new Date(s.ended_at).getTime()) && Number.isFinite(Number(s.duration_seconds)) && Number(s.duration_seconds) > 0)
+    .sort((a, b) => new Date(a.ended_at) - new Date(b.ended_at) || String(a.id).localeCompare(String(b.id)));
+  const acc = new Map();
+  const points = [];
+  const byPerson = new Map();
+  valid.forEach((s, i) => {
+    const minutes = Number(s.duration_seconds) / 60;
+    const cur = acc.get(s.shopper_profile_id) || { sum: 0, n: 0 };
+    cur.sum += minutes; cur.n += 1;
+    acc.set(s.shopper_profile_id, cur);
+    const pt = { x: i + 1, sessionId: s.id, personId: s.shopper_profile_id, at: s.ended_at, minutes, avg: cur.sum / cur.n, n: cur.n };
+    points.push(pt);
+    if (!byPerson.has(pt.personId)) byPerson.set(pt.personId, []);
+    byPerson.get(pt.personId).push(pt);
+  });
+  return { points, byPerson, total: valid.length };
+}
+
+/** Minutos con un máximo de dos decimales y coma decimal: 37,65 min. */
+export const fmtMinutes = (m) => `${(Math.round(Number(m) * 100) / 100).toLocaleString('es-ES', { maximumFractionDigits: 2 })} min`;

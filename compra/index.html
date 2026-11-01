@@ -13,7 +13,7 @@
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="icon" href="./img/icono-despensa.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="../icons/icon-192.png">
-<link rel="stylesheet" href="./styles.css?v=1.0">
+<link rel="stylesheet" href="./styles.css?v=1.2">
 </head>
 <body>
 
@@ -56,11 +56,12 @@
       <a class="navbtn" href="#inicio" data-page="inicio"><span class="nicon" aria-hidden="true">🏠</span><span><b>La despensa de un vistazo</b><small>Inicio: la semana en un momento</small></span></a>
       <a class="navbtn" href="#mapa" data-page="mapa"><span class="nicon" aria-hidden="true">🗺️</span><span><b>El mapa del súper</b><small>Zonas y dónde está cada producto</small></span></a>
       <a class="navbtn" href="#lista" data-page="lista"><span class="nicon" aria-hidden="true">📝</span><span><b>Apunta lo que falta</b><small>Preparar la lista de la compra</small></span></a>
+      <a class="navbtn" href="#menu" data-page="menu"><span class="nicon" aria-hidden="true">🍲</span><span><b>Menú semanal</b><small>Comidas y cenas de la semana</small></span></a>
       <a class="navbtn" href="#compra" data-page="compra"><span class="nicon" aria-hidden="true">🛒</span><span><b>¡A por la compra!</b><small>Hacer la compra con la lista</small></span></a>
       <a class="navbtn" href="#tickets" data-page="tickets"><span class="nicon" aria-hidden="true">🧾</span><span><b>Tickets por saldar</b><small>Tickets pendientes de pago</small></span></a>
       <a class="navbtn" href="#numeros" data-page="numeros"><span class="nicon" aria-hidden="true">🏆</span><span><b>El rincón de los números</b><small>Tiempos y curiosidades de la compra</small></span></a>
       <a class="navbtn" href="#novedades" data-page="novedades"><span class="nicon" aria-hidden="true">✨</span><span><b>Lo nuevo del súper</b><small>Novedades, precios y cambios</small><i class="nav-badge" id="navBadgeNews" hidden></i></span></a>
-      <a class="navbtn" href="#ajustes" data-page="ajustes"><span class="nicon" aria-hidden="true">⚙️</span><span><b>Los ajustes</b><small>Clave, catálogo, zonas y datos</small></span></a>
+      <a class="navbtn" href="#ajustes" data-page="ajustes"><span class="nicon" aria-hidden="true">⚙️</span><span><b>Los ajustes</b><small>Catálogo, zonas y datos</small></span></a>
     </nav>
     <button class="navbtn switch-app" id="switchHome" type="button"><span class="nicon" aria-hidden="true">🏠</span><span><b>Cambiar de aplicación</b><small>Volver al inicio de Hogar</small></span></button>
   </aside>
@@ -70,6 +71,7 @@
   <section class="page" id="page-inicio" aria-labelledby="h-inicio"></section>
   <section class="page" id="page-mapa" aria-labelledby="h-mapa"></section>
   <section class="page" id="page-lista" aria-labelledby="h-lista"></section>
+  <section class="page" id="page-menu" aria-labelledby="h-menu"></section>
   <section class="page" id="page-compra" aria-labelledby="h-compra"></section>
   <section class="page" id="page-tickets" aria-labelledby="h-tickets"></section>
   <section class="page" id="page-numeros" aria-labelledby="h-numeros"></section>
@@ -109,7 +111,7 @@
 <noscript><p class="noscript">La despensa necesita JavaScript para funcionar.</p></noscript>
 
 <script src="./supabase-config.js"></script>
-<script type="module" src="./js/app.js?v=1.0"></script>
+<script type="module" src="./js/app.js?v=1.2"></script>
 <script>
   // Red de seguridad: si la aplicación no llega a arrancar (sin cobertura o navegador antiguo), se ofrece salir.
   setTimeout(function () {

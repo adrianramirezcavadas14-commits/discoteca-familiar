@@ -4,17 +4,19 @@
 import { S, zonesByRoute, zoneById, productsInZone, unclassifiedProducts, draftQty, setDraftQty, flushDraft, hasUnsavedDraft, productById, zoneIdOf, closeDraft, queueInfo } from '../data/store.js';
 import { explainError } from '../data/api.js';
 import { renderMap } from '../ui/map.js';
-import { prepCard, listRow, openProductDetail, openPanel } from '../ui/cards.js';
-import { $, toast, withLoader, confirmDialog } from '../ui/dom.js';
+import { prepCard, listRow, openProductDetail, openPanel, closePanel } from '../ui/cards.js';
+import { $, toast, withLoader, confirmDialog, dialog, productImg } from '../ui/dom.js';
+import { mountFinder, zoneLabel } from '../ui/finder.js';
+import { setBacklogQty, backlogQty, moveBetweenLists, setReviewFlag, isFlagged } from '../data/plans.js';
 import { go, broadcast } from '../ui/nav.js';
 import { circularNeighbors, arrowLabel } from '../core/zones.js';
 import { listTotals } from '../core/pricing.js';
-import { splitZoneBlocks, filterProducts, sortProducts, subcategoriesOf, pageSlice } from '../core/catalog-view.js';
+import { splitZoneBlocks, filterProducts, sortProducts, subcategoriesOf } from '../core/catalog-view.js';
 import { esc, fmtEur, plural, fmtDateTime, debounce } from '../core/text.js';
-import { PAGE_SIZE, FREQUENT_LIMIT } from '../config.js';
+import { FREQUENT_LIMIT } from '../config.js';
 
 const NONE = 'sin-zona';
-const ui = { zoneId: null, q: '', sub: '', sort: 'alpha', promo: false, page: 1 };
+const ui = { zoneId: null, q: '', sub: '', sort: 'alpha', promo: false };
 
 const draftItems = () => [...S.draft.items].map(([product_id, it]) => ({ product_id, quantity: it.quantity }));
 function countsByZone() {
@@ -36,27 +38,44 @@ function basketBar(zoneOpen) {
     <div class="b-main"><span class="b-total" aria-live="polite">${fmtEur(t.total)}</span><span class="b-meta">${plural(t.products, 'producto', 'productos')} · ${plural(t.units, 'ud.', 'uds.')}</span><span class="b-state">${state}</span></div>
     ${zoneOpen ? '<button type="button" class="btn small ghost" data-map aria-label="Ver el mapa">🗺️<span class="bl"> Mapa</span></button>' : ''}
     <button type="button" class="btn small ghost" data-all aria-label="Ver toda la lista">📋<span class="bl"> Ver lista</span></button>
+    <button type="button" class="btn small ghost" data-backlog aria-label="Pendientes no urgentes: ${plural(S.backlog.size, 'producto', 'productos')}">🕰️<span class="bl"> No urgentes</span>${S.backlog.size ? ` <b class="b-count">${S.backlog.size}</b>` : ''}</button>
     <button type="button" class="btn small yellow" data-save aria-label="Guardar la lista" ${unsaved ? '' : 'disabled'}>💾<span class="bl"> Guardar</span></button>
   </div>`;
 }
 
 export function render(el, params = []) {
   const zid = params[0] || null;
-  if (zid !== ui.zoneId) Object.assign(ui, { zoneId: zid, q: '', sub: '', sort: 'alpha', promo: false, page: 1 });
+  if (zid !== ui.zoneId) Object.assign(ui, { zoneId: zid, q: '', sub: '', sort: 'alpha', promo: false });
   if (S.pending.list && !S.draft.items.size && !zid) {
     // Hay compra pendiente y ninguna lista nueva: se avisa, pero se puede empezar otra.
   }
   el.innerHTML = `
     <div class="hero"><div><h2 id="h-lista">Apunta lo que falta</h2><p>Elige una zona del mapa y añade lo que hace falta esta semana.</p></div></div>
     ${S.pending.list ? `<div class="offline-banner" style="background:#e3f4ea;color:#0a6b3f">🛒 Ya hay una lista cerrada pendiente de compra. Puedes ir preparando la siguiente, pero no se podrá cerrar hasta terminar esa compra.</div>` : ''}
-    <div data-basket></div>
+    <div data-finder></div>
+    <div class="prep-sticky" data-sticky>
+      <div data-basket></div>
+      <div data-zonenav></div>
+    </div>
     <div data-body></div>`;
   bind(el);
   paint(el);
 }
 
+/* Buscador universal: uno solo para las dos listas, fuera de cualquier zona. */
+function paintFinder(el) {
+  mountFinder(el.querySelector('[data-finder]'), {
+    mode: 'lista', title: 'Buscar un producto en todo el súper',
+    placeholder: '🔎 Busca un producto aunque esté en otra zona…',
+    onOpen: (pid) => showDetail(pid),
+    onMain: (pid) => { setDraftQty(pid, draftQty(pid) + 1); toast(`Añadido a la lista principal (${draftQty(pid)}).`); },
+    onLater: (pid) => changeBacklog(pid, backlogQty(pid) + 1, 'Añadido a «Pendientes no urgentes»'),
+    onFlag: (pid) => toggleFlag(pid)
+  });
+}
+
 export function update(el, params, what) {
-  if (['draft', 'lists', 'zones', 'freq', 'catalog', 'queue', 'orientation', 'all', 'settings'].includes(typeof what === 'string' ? what : '')) paint(el, { keepFocus: true });
+  if (['draft', 'lists', 'zones', 'freq', 'catalog', 'queue', 'orientation', 'all', 'settings', 'backlog', 'flags'].includes(typeof what === 'string' ? what : '')) paint(el, { keepFocus: true });
 }
 
 function paint(el, { keepFocus = false } = {}) {
@@ -67,9 +86,11 @@ function paint(el, { keepFocus = false } = {}) {
   const anchorPid = anchor?.dataset.pid;
 
   el.querySelector('[data-basket]').innerHTML = basketBar(!!ui.zoneId);
+  paintFinder(el);
   const body = el.querySelector('[data-body]');
-  if (!ui.zoneId) paintMap(body);
-  else paintZone(body);
+  el.querySelector('[data-sticky]').classList.toggle('with-zone', !!ui.zoneId);
+  if (!ui.zoneId) { el.querySelector('[data-zonenav]').innerHTML = ''; paintMap(body); }
+  else paintZone(body, el.querySelector('[data-zonenav]'));
 
   if (focusKey) {
     const target = el.querySelector(focusKey) || (anchorPid && (el.querySelector(`[data-pid="${CSS.escape(anchorPid)}"] [data-inc]`)));
@@ -90,7 +111,8 @@ function paintMap(body) {
     <div class="row" style="justify-content:space-between;margin-top:12px">
       <span class="muted">Precio estimado actual: <b style="color:var(--ink)">${fmtEur(t.total)}</b>${S.sync.last?.finished_at ? ` · precios del ${esc(fmtDateTime(S.sync.last.finished_at))}` : ''}</span>
     </div>
-    <div class="close-list-bar"><button type="button" class="btn primary big-btn" data-close-list ${t.products ? '' : 'disabled'}>✅ Cerrar lista</button></div>`;
+    <div class="close-list-bar"><button type="button" class="btn primary big-btn" data-close-list ${t.products ? '' : 'disabled'}>✅ Cerrar lista</button></div>
+    ${backlogCard()}`;
   renderMap(body.querySelector('[data-map-host]'), {
     zones: S.zones, counts, activeId: null, countLabel: ['producto en la lista', 'productos en la lista'],
     legend: 'El número rojo indica cuántos productos de la zona hay ya en la lista.',
@@ -104,7 +126,7 @@ function zoneProducts() {
   return ui.zoneId === NONE ? unclassifiedProducts() : productsInZone(ui.zoneId);
 }
 
-function paintZone(body) {
+function paintZone(body, navHost) {
   const zone = ui.zoneId === NONE ? { id: NONE, route_order: '?', name: 'Productos sin zona', summary: 'Sin clasificar', color: '#8a8f9c' } : zoneById(ui.zoneId);
   if (!zone) { go('lista'); return; }
   const nav = ui.zoneId === NONE ? { prev: zonesByRoute().at(-1), next: zonesByRoute()[0] } : circularNeighbors(S.zones, zone.id);
@@ -119,15 +141,16 @@ function paintZone(body) {
   const more = moreResults(moreBase, inList);
   const listedTotal = listTotals(blocks.inList.map((p) => ({ product_id: p.id, quantity: inList.get(p.id) })), S.products);
 
-  body.innerHTML = `
+  // Cabecera fija (sticky) con el cambio de zona y la salida al mapa.
+  navHost.innerHTML = `
     <nav class="zone-nav" aria-label="Cambiar de zona" style="--zc:${esc(zone.color)}">
       <button type="button" class="zn-arrow prev" data-goto="${esc(nav.prev?.id || '')}" aria-label="Zona anterior: ${esc(nav.prev ? `${nav.prev.route_order} ${nav.prev.name}` : '')}">
-        <b aria-hidden="true">‹</b><span><strong>${nav.prev ? `${nav.prev.route_order} · ${esc(nav.prev.name)}` : ''}</strong><small>${esc(arrowLabel(nav.prev))}</small></span></button>
-      <div class="zn-current"><span class="zn-num">${esc(zone.route_order)}</span><strong>${esc(zone.name)}</strong><button type="button" class="btn small ghost" data-map>🗺️ Mapa</button></div>
+        <b aria-hidden="true">‹</b><span><strong>${nav.prev ? `<span class="zn-n">${esc(nav.prev.route_order)}</span><span class="zn-t"> · ${esc(nav.prev.name)}</span>` : ''}</strong><small>${esc(arrowLabel(nav.prev))}</small></span></button>
+      <div class="zn-current"><span class="zn-num">${esc(zone.route_order)}</span><strong>${esc(zone.name)}</strong><button type="button" class="btn small ghost" data-map aria-label="Salir al mapa">🗺️ Mapa</button></div>
       <button type="button" class="zn-arrow next" data-goto="${esc(nav.next?.id || '')}" aria-label="Zona siguiente: ${esc(nav.next ? `${nav.next.route_order} ${nav.next.name}` : '')}">
-        <span><strong>${nav.next ? `${nav.next.route_order} · ${esc(nav.next.name)}` : ''}</strong><small>${esc(arrowLabel(nav.next))}</small></span><b aria-hidden="true">›</b></button>
-    </nav>
-
+        <span><strong>${nav.next ? `<span class="zn-n">${esc(nav.next.route_order)}</span><span class="zn-t"> · ${esc(nav.next.name)}</span>` : ''}</strong><small>${esc(arrowLabel(nav.next))}</small></span><b aria-hidden="true">›</b></button>
+    </nav>`;
+  body.innerHTML = `
     <section class="block" aria-labelledby="b1">
       <div class="block-head"><h3 id="b1">1. Ya está en la lista</h3><small>${blocks.inList.length ? `${plural(blocks.inList.length, 'producto', 'productos')} · ${fmtEur(listedTotal.total)}` : ''}</small></div>
       ${blocks.inList.length ? `<div class="in-list">${blocks.inList.map((p) => listRow(p, inList.get(p.id))).join('')}</div>` : '<div class="empty-note">Todavía no hay nada de esta zona en la lista.</div>'}
@@ -135,7 +158,7 @@ function paintZone(body) {
 
     <section class="block" aria-labelledby="b2">
       <div class="block-head"><h3 id="b2">2. Los de siempre</h3><small>Ordenados por el número de listas en las que han aparecido</small></div>
-      ${blocks.frequent.length ? `<div class="cards">${blocks.frequent.map((p) => prepCard(p, inList.get(p.id) || 0, S.freq.get(p.id))).join('')}</div>` : '<div class="empty-note">Cuando terminemos compras, aquí aparecerán los productos habituales de esta zona.</div>'}
+      ${blocks.frequent.length ? `<div class="cards">${blocks.frequent.map((p) => prepCard(p, inList.get(p.id) || 0, S.freq.get(p.id), { flagged: isFlagged(p.id) })).join('')}</div>` : '<div class="empty-note">Cuando terminemos compras, aquí aparecerán los productos habituales de esta zona.</div>'}
     </section>
 
     <section class="block" aria-labelledby="b3">
@@ -150,14 +173,12 @@ function paintZone(body) {
     </section>`;
 }
 
-/** Bloque 3 (resultados del buscador y filtros). Se repinta solo, sin tocar la caja de texto. */
+/** Bloque 3: TODOS los productos de la zona desde el principio (sin «Ver más»). Se repinta solo, sin tocar la caja de texto. */
 function moreResults(moreBase, inList) {
   const filtered = sortProducts(filterProducts(moreBase, { q: ui.q, subcategory: ui.sub || null, promo: ui.promo }), ui.sort);
-  const shown = pageSlice(filtered, ui.page, PAGE_SIZE);
   return {
     count: plural(filtered.length, 'producto', 'productos'),
-    html: `${shown.length ? `<div class="cards">${shown.map((p) => prepCard(p, inList.get(p.id) || 0)).join('')}</div>` : `<div class="empty-note">${ui.q || ui.sub || ui.promo ? 'No hay productos con esos filtros.' : 'No hay más productos en esta zona.'}</div>`}
-      ${shown.length < filtered.length ? `<button type="button" class="load-more" data-more>Ver más productos (${filtered.length - shown.length} restantes)</button>` : ''}`
+    html: filtered.length ? `<div class="cards">${filtered.map((p) => prepCard(p, inList.get(p.id) || 0, 0, { flagged: isFlagged(p.id) })).join('')}</div>` : `<div class="empty-note">${ui.q || ui.sub || ui.promo ? 'No hay productos con esos filtros.' : 'No hay más productos en esta zona.'}</div>`
   };
 }
 
@@ -180,17 +201,25 @@ const bound = new WeakSet();
 function bind(el) {
   if (bound.has(el)) return;
   bound.add(el);
-  const onSearch = debounce((v) => { ui.q = v; ui.page = 1; paintMoreResults(el); }, 250);
+  const onSearch = debounce((v) => { ui.q = v; paintMoreResults(el); }, 250);
   el.addEventListener('input', (e) => {
     if (e.target.matches('[data-q]')) onSearch(e.target.value);
   });
   el.addEventListener('change', (e) => {
-    if (e.target.matches('[data-sub]')) { ui.sub = e.target.value; ui.page = 1; paintMoreResults(el); }
-    else if (e.target.matches('[data-sort]')) { ui.sort = e.target.value; ui.page = 1; paintMoreResults(el); }
-    else if (e.target.matches('[data-promo]')) { ui.promo = e.target.checked; ui.page = 1; paintMoreResults(el); }
+    if (e.target.matches('[data-sub]')) { ui.sub = e.target.value; paintMoreResults(el); }
+    else if (e.target.matches('[data-sort]')) { ui.sort = e.target.value; paintMoreResults(el); }
+    else if (e.target.matches('[data-promo]')) { ui.promo = e.target.checked; paintMoreResults(el); }
   });
   el.addEventListener('click', async (e) => {
     const t = e.target;
+    if (t.closest('[data-finder]')) return;   // el buscador universal tiene sus propios botones
+    const fl = t.closest('[data-flag]');
+    if (fl) { await toggleFlag(fl.dataset.flag); return; }
+    const bq = t.closest('[data-bq]');
+    if (bq) { await changeBacklog(bq.dataset.pid, backlogQty(bq.dataset.pid) + Number(bq.dataset.bq)); return; }
+    const mv = t.closest('[data-move-to]');
+    if (mv) { await moveItem(mv.dataset.pid, mv.dataset.moveTo); return; }
+    if (t.closest('[data-backlog]')) { showBacklog(); return; }
     const inc = t.closest('[data-inc]');
     if (inc) { setDraftQty(inc.dataset.inc, draftQty(inc.dataset.inc) + 1); return; }
     const dec = t.closest('[data-dec]');
@@ -200,7 +229,6 @@ function bind(el) {
     const gz = t.closest('[data-goto]');
     if (gz && gz.dataset.goto) { await flushDraft().catch(() => {}); go('lista', gz.dataset.goto); return; }
     if (t.closest('[data-map]')) { await flushDraft().catch(() => {}); go('lista'); return; }
-    if (t.closest('[data-more]')) { ui.page++; paintMoreResults(el); return; }
     if (t.closest('[data-save]')) { await save(); return; }
     if (t.closest('[data-all]')) { showWholeList(); return; }
     if (t.closest('[data-close-list]')) { await closeListFlow(); }
@@ -229,8 +257,15 @@ async function save() {
 function showDetail(pid) {
   const p = productById(pid);
   const qty = draftQty(pid);
-  const modal = openProductDetail(p, { extra: `<div class="row" style="margin-top:12px"><span class="muted">En la lista:</span> <span data-detail-qty>${qty ? `<span class="stepper"><button type="button" data-dq="-1" aria-label="Una unidad menos">−</button><output>${qty}</output><button type="button" data-dq="1" aria-label="Una unidad más">+</button></span>` : '<button type="button" class="add-btn" data-dq="1">+ Añadir a la lista</button>'}</span></div>` });
-  modal.querySelector('#pmBody').onclick = (e) => {
+  const later = backlogQty(pid), flagged = isFlagged(pid);
+  const modal = openProductDetail(p, { extra: `<div class="row" style="margin-top:12px"><span class="muted">En la lista:</span> <span data-detail-qty>${qty ? `<span class="stepper"><button type="button" data-dq="-1" aria-label="Una unidad menos">−</button><output>${qty}</output><button type="button" data-dq="1" aria-label="Una unidad más">+</button></span>` : '<button type="button" class="add-btn" data-dq="1">+ Añadir a la lista</button>'}</span></div>
+    <div class="row" style="margin-top:10px">
+      <button type="button" class="btn small ghost" data-dlater>🕰️ ${later ? `No urgentes: ${later} · añadir otra` : 'Añadir a «Pendientes no urgentes»'}</button>
+      <button type="button" class="btn small ${flagged ? 'yellow' : 'ghost'}" data-dflag aria-pressed="${flagged}">🚩 ${flagged ? 'Pendiente de revisar ✓' : 'Marcar para revisar'}</button>
+    </div>` });
+  modal.querySelector('#pmBody').onclick = async (e) => {
+    if (e.target.closest('[data-dlater]')) { if (await changeBacklog(pid, backlogQty(pid) + 1, 'Añadido a «Pendientes no urgentes»')) showDetail(pid); return; }
+    if (e.target.closest('[data-dflag]')) { await toggleFlag(pid); showDetail(pid); return; }
     const b = e.target.closest('[data-dq]');
     if (!b) return;
     setDraftQty(pid, draftQty(pid) + Number(b.dataset.dq));
@@ -248,17 +283,104 @@ function showWholeList() {
   }
   const zones = [...zonesByRoute().filter((z) => byZone.has(z.id)), ...(byZone.has(NONE) ? [{ id: NONE, route_order: '?', name: 'Sin zona', color: '#8a8f9c' }] : [])];
   const t = listTotals(draftItems(), S.products);
-  const body = openPanel('La lista de esta semana', zones.length ? `
+  const body = openPanel('La lista de esta semana', `${listTabs('main')}${zones.length ? `
     <p class="muted">${plural(t.products, 'producto', 'productos')} · ${plural(t.units, 'unidad', 'unidades')} · <b>${fmtEur(t.total)}</b> estimados</p>
     ${zones.map((z) => `<h3 style="margin:14px 0 6px;display:flex;gap:8px;align-items:center"><span class="pill" style="background:${esc(z.color)};color:#fff">${esc(z.route_order)}</span>${esc(z.name)}</h3>
-      <div class="in-list">${byZone.get(z.id).filter((x) => x.p).map((x) => listRow(x.p, x.qty)).join('')}</div>`).join('')}` : '<div class="empty-note">La lista está vacía.</div>');
-  body.onclick = (e) => {
+      <div class="in-list">${byZone.get(z.id).filter((x) => x.p).map((x) => `<div class="li-wrap">${listRow(x.p, x.qty)}<button type="button" class="move-btn" data-move-to="backlog" data-pid="${esc(x.p.id)}" aria-label="Mover ${esc(x.p.name)} a Pendientes no urgentes">🕰️ Mover a «No urgentes»</button></div>`).join('')}</div>`).join('')}` : '<div class="empty-note">La lista está vacía.</div>'}`);
+  body.onclick = async (e) => {
+    if (e.target.closest('[data-tab-backlog]')) { showBacklog(); return; }
+    const mv = e.target.closest('[data-move-to]');
+    if (mv) { if (await moveItem(mv.dataset.pid, mv.dataset.moveTo)) showWholeList(); return; }
     const inc = e.target.closest('[data-inc]'), dec = e.target.closest('[data-dec]');
     if (inc) setDraftQty(inc.dataset.inc, draftQty(inc.dataset.inc) + 1);
     else if (dec) setDraftQty(dec.dataset.dec, draftQty(dec.dataset.dec) - 1);
     else return;
     showWholeList();
   };
+}
+
+/* =================================================================
+   «Pendientes no urgentes» (segunda lista, siempre abierta)
+   ================================================================= */
+const listTabs = (active) => `<div class="tabs list-tabs" role="tablist" aria-label="Listas">
+  <button type="button" class="tab" role="tab" data-tab-main aria-selected="${active === 'main'}">📋 Lista principal<span class="count">${S.draft.items.size}</span></button>
+  <button type="button" class="tab" role="tab" data-tab-backlog aria-selected="${active === 'backlog'}">🕰️ Pendientes no urgentes<span class="count">${S.backlog.size}</span></button>
+</div>`;
+
+function backlogItems() {
+  return [...S.backlog].map(([pid, it]) => ({ p: productById(pid), qty: it.quantity })).filter((x) => x.p)
+    .sort((a, b) => (zoneById(zoneIdOf(a.p.id))?.route_order ?? 99) - (zoneById(zoneIdOf(b.p.id))?.route_order ?? 99) || a.p.name.localeCompare(b.p.name, 'es'));
+}
+
+function backlogRow(p, qty) {
+  return `<div class="li-wrap backlog-row" data-pid="${esc(p.id)}">
+    <div class="li-row">
+      <button type="button" class="li-img" data-detail="${esc(p.id)}" aria-label="Ver ficha de ${esc(p.name)}">${productImg(p)}</button>
+      <button type="button" class="li-name" data-detail="${esc(p.id)}"><b>${esc(p.name)}</b><small>${esc(p.format_label || '')} · ${fmtEur(p.price)}/ud.</small></button>
+      <span class="li-sub">${zoneLabel(p.id)}</span>
+      <span class="stepper" role="group" aria-label="Cantidad de ${esc(p.name)}">
+        <button type="button" data-bq="-1" data-pid="${esc(p.id)}" aria-label="${qty <= 1 ? 'Quitar de Pendientes no urgentes' : 'Una unidad menos'}">${qty <= 1 ? '<span aria-hidden="true">🗑</span>' : '−'}</button>
+        <output aria-live="polite">${qty}</output>
+        <button type="button" data-bq="1" data-pid="${esc(p.id)}" aria-label="Una unidad más" ${qty >= 99 ? 'disabled' : ''}>+</button>
+      </span>
+    </div>
+    <button type="button" class="move-btn main" data-move-to="main" data-pid="${esc(p.id)}" aria-label="Mover ${esc(p.name)} a la lista principal">📋 Pasar a la lista principal</button>
+  </div>`;
+}
+
+function backlogCard() {
+  const items = backlogItems();
+  return `<section class="card backlog-card" aria-labelledby="h-backlog">
+    <div class="card-head"><h3 id="h-backlog">🕰️ Pendientes no urgentes</h3><small class="muted">${plural(items.length, 'producto', 'productos')} · siempre abierta</small></div>
+    ${S.plansError ? `<div class="offline-banner">${esc(S.plansError)}</div>` : ''}
+    <p class="muted" style="margin:0 0 8px">Lo que no corre prisa. Añade productos desde el buscador y pásalos a la lista principal cuando toque.</p>
+    ${items.length ? `<div class="in-list">${items.map((x) => backlogRow(x.p, x.qty)).join('')}</div>` : '<div class="empty-note">No hay nada pendiente sin prisa.</div>'}
+  </section>`;
+}
+
+function showBacklog() {
+  const items = backlogItems();
+  const body = openPanel('Pendientes no urgentes', `${listTabs('backlog')}
+    ${S.plansError ? `<div class="offline-banner">${esc(S.plansError)}</div>` : ''}
+    ${items.length ? `<div class="in-list">${items.map((x) => backlogRow(x.p, x.qty)).join('')}</div>` : '<div class="empty-note">No hay nada pendiente sin prisa. Usa el buscador para añadir productos.</div>'}`);
+  body.onclick = async (e) => {
+    if (e.target.closest('[data-tab-main]')) { showWholeList(); return; }
+    const det = e.target.closest('[data-detail]');
+    if (det) { closePanel(); showDetail(det.dataset.detail); return; }
+    const bq = e.target.closest('[data-bq]');
+    if (bq) { if (await changeBacklog(bq.dataset.pid, backlogQty(bq.dataset.pid) + Number(bq.dataset.bq))) showBacklog(); return; }
+    const mv = e.target.closest('[data-move-to]');
+    if (mv && await moveItem(mv.dataset.pid, mv.dataset.moveTo)) showBacklog();
+  };
+}
+
+async function changeBacklog(pid, qty, okMessage = '') {
+  try {
+    await setBacklogQty(pid, qty);
+    broadcast('backlog');
+    if (okMessage) toast(`${okMessage} (${backlogQty(pid)}).`);
+    return true;
+  } catch (err) { dialog({ title: 'No se ha guardado', message: explainError(err) }); return false; }
+}
+
+async function moveItem(pid, to) {
+  const p = productById(pid);
+  try {
+    const res = await moveBetweenLists(pid, to);
+    broadcast('backlog');
+    broadcast('lists');
+    toast(to === 'backlog' ? `«${p?.name || 'Producto'}» pasa a «Pendientes no urgentes» (${res.quantity}).` : `«${p?.name || 'Producto'}» pasa a la lista principal (${res.quantity}).`);
+    return true;
+  } catch (err) { dialog({ title: 'No se ha movido', message: explainError(err) }); return false; }
+}
+
+async function toggleFlag(pid) {
+  const on = !isFlagged(pid);
+  try {
+    await setReviewFlag(pid, on);
+    broadcast('flags');
+    toast(on ? 'Marcado como pendiente de revisar. Aparece en «Lo nuevo del súper».' : 'Ya no está pendiente de revisar.');
+  } catch (err) { dialog({ title: 'No se ha guardado', message: explainError(err) }); }
 }
 
 /** Resumen y cierre de la lista (necesita conexión). */

@@ -3,7 +3,7 @@
    Realtime). La clave familiar viaja en la cabecera «x-compra-key».
    Nunca se usa la clave service_role en el navegador.
    ===================================================================== */
-import { SUPABASE_JS, DB_SCHEMA, NET_TIMEOUT, SYNC_FUNCTION, TICKETS_FUNCTION } from '../config.js';
+import { SUPABASE_JS, DB_SCHEMA, NET_TIMEOUT, SYNC_FUNCTION, TICKETS_FUNCTION, RECIPES_FUNCTION } from '../config.js';
 
 export class ApiError extends Error {
   constructor(message, { code = '', userMessage = '', status = 0, detail = '', offline = false } = {}) {
@@ -145,6 +145,9 @@ export const api = {
   sync(action, extra = {}) { return api.edge(SYNC_FUNCTION, { action, ...extra }, { ms: 70000 }); },
   tickets(bodyOrForm) {
     return bodyOrForm instanceof FormData ? api.edge(TICKETS_FUNCTION, null, { form: bodyOrForm, ms: 90000 }) : api.edge(TICKETS_FUNCTION, bodyOrForm);
+  },
+  recipes(bodyOrForm) {
+    return bodyOrForm instanceof FormData ? api.edge(RECIPES_FUNCTION, null, { form: bodyOrForm, ms: 60000 }) : api.edge(RECIPES_FUNCTION, bodyOrForm, { ms: 30000 });
   },
 
   /**

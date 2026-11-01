@@ -20,6 +20,7 @@ import { createClient } from '@supabase/supabase-js';
 import { freshDatabase, FAMILY_KEY } from '../sql/helpers.mjs';
 import { createSyncHandler } from '../../supabase/functions/_shared/sync-handler.js';
 import { createTicketsHandler } from '../../supabase/functions/_shared/tickets-handler.js';
+import { createRecipesHandler } from '../../supabase/functions/_shared/recipes-handler.js';
 import { baseCatalog, fakeProvider } from '../fixtures/catalog-fixtures.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -97,6 +98,28 @@ export async function startStack({ apiPort = 8081, webPort = 8080, pgrstPort = 3
   };
   const ticketsHandler = createTicketsHandler({ client: serviceClient, storage });
 
+  // Imágenes de recetas: Wikimedia Commons y Openverse FALSOS (sin salida a Internet) y bucket público en memoria.
+  const recipeSearches = [];
+  const fakeImagesFetch = async (url) => {
+    const u = new URL(url);
+    recipeSearches.push(u.host);
+    const ok = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (u.host === 'commons.wikimedia.org') {
+      const off = Number(u.searchParams.get('gsroffset') || 0);
+      const pages = {};
+      for (let i = 0; i < 6; i++) pages[i] = { index: i, title: `File:Plato ${off + i}.jpg`, imageinfo: [{ url: `https://upload.wikimedia.org/fake/plato-${off + i}.jpg`, thumburl: `https://upload.wikimedia.org/fake/plato-${off + i}-640.jpg`, descriptionurl: `https://commons.wikimedia.org/wiki/File:Plato_${off + i}.jpg`, extmetadata: { Artist: { value: 'Autora de prueba' }, LicenseShortName: { value: 'CC BY-SA 4.0' } } }] };
+      return ok({ query: { pages } });
+    }
+    if (u.host === 'api.openverse.org') {
+      const page = Number(u.searchParams.get('page') || 1);
+      return ok({ results: Array.from({ length: 6 }, (_, i) => ({ url: `https://upload.wikimedia.org/fake/ov-${page}-${i}.jpg`, thumbnail: `https://upload.wikimedia.org/fake/ov-${page}-${i}-thumb.jpg`, foreign_landing_url: 'https://www.flickr.com/photos/prueba', creator: 'Persona de prueba', license: 'by', source: 'flickr', title: `Receta ${i}` })) });
+    }
+    return new Response('{}', { status: 404 });
+  };
+  const recipeFiles = new Map();
+  const recipeStorage = { async upload(path, bytes) { recipeFiles.set(path, bytes); }, publicUrl(path) { return `https://storage.despensa.test/compra-recetas/${path}`; } };
+  const recipesHandler = createRecipesHandler({ client: serviceClient, storage: recipeStorage, fetchImpl: fakeImagesFetch });
+
   const api = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, apiBase);
@@ -108,7 +131,7 @@ export async function startStack({ apiPort = 8081, webPort = 8080, pgrstPort = 3
       };
       if (url.pathname.startsWith('/functions/v1/')) {
         const name = url.pathname.split('/')[3];
-        const handler = name === 'compra-sync' ? syncHandler : name === 'compra-tickets' ? ticketsHandler : null;
+        const handler = name === 'compra-sync' ? syncHandler : name === 'compra-tickets' ? ticketsHandler : name === 'compra-recetas' ? recipesHandler : null;
         if (!handler) { res.writeHead(404, cors); res.end('{"error":"Function not found"}'); return; }
         await sendResponse(res, await handler(await toRequest(req, apiBase)));
         return;
@@ -158,7 +181,7 @@ export async function startStack({ apiPort = 8081, webPort = 8080, pgrstPort = 3
   await new Promise((r) => web.listen(webPort, r));
 
   return {
-    pool, catalog, apiBase, webBase: `http://localhost:${webPort}`, publishable: PUBLISHABLE, familyKey: FAMILY_KEY, serviceJwt,
+    pool, catalog, apiBase, webBase: `http://localhost:${webPort}`, publishable: PUBLISHABLE, familyKey: FAMILY_KEY, serviceJwt, recipeSearches,
     async stop() {
       web.closeAllConnections?.(); api.closeAllConnections?.();
       await new Promise((r) => web.close(r));

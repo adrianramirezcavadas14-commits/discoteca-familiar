@@ -195,12 +195,12 @@ export function pickReplacement(original) {
     draw();
     let t;
     $('#repQ').addEventListener('input', () => { clearTimeout(t); t = setTimeout(draw, 250); });
-    body.addEventListener('click', (e) => {
+    body.onclick = (e) => {
       const b = e.target.closest('[data-pick]');
       if (!b) return;
       const p = productById(b.dataset.pick);
       resolve(p);
       closePanel();
-    });
+    };
   });
 }

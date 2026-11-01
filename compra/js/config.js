@@ -4,7 +4,7 @@
    Todo lo que se puede querer cambiar sin tocar la lógica está aquí.
    ===================================================================== */
 
-export const APP_VERSION = '1.1 · 31/10/2026';
+export const APP_VERSION = '1.2 · 01/11/2026';
 
 /* Pantallas de carga: para cambiar un GIF basta con subir el archivo a
    la carpeta compra/ y escribir aquí su nombre. No aparecen en ningún otro sitio. */
@@ -29,6 +29,7 @@ export const SHOPPERS = [
 export const DB_SCHEMA = 'compra';
 export const SYNC_FUNCTION = 'compra-sync';
 export const TICKETS_FUNCTION = 'compra-tickets';
+export const RECIPES_FUNCTION = 'compra-recetas';
 
 export const SUPABASE_JS = [
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.100.0/dist/umd/supabase.js',
