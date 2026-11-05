@@ -843,3 +843,65 @@ button.leg:hover { background: #efe8dc; }
 .mc-stars.none { color: var(--muted); font-size: 11px; font-weight: 800; }
 @media (max-width: 760px) { .mc-stars .star, .mc-stars .star svg { width: 13px; height: 13px; } }
 @media (max-width: 380px) { .mc-stars .star, .mc-stars .star svg { width: 11px; height: 11px; } }
+
+/* ====== v13 · Aventuras pendientes por persona, recomendaciones y Libros de viaje ====== */
+.pend-stack { display: grid; gap: 18px; margin-top: 4px; }
+.pend-card .person-name h3 { font-size: 20px; }
+.see-more { width: 100%; border: 1px dashed #d8cbb6; border-radius: 13px; background: #fffaf2; color: var(--ink); padding: 11px; font-weight: 900; min-height: 44px; margin-top: 2px; }
+.rec-hint { margin: -4px 0 12px; color: var(--muted); font-size: 13px; }
+.item-card .ic-body small .rec-by { display: inline; color: var(--ink); font-weight: 900; }
+.rec-by::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 3px; background: var(--c, var(--coral)); margin-right: 4px; vertical-align: 1px; }
+.rec-item .ic-actions .go-cal { font-size: 22px; font-weight: 900; }
+.rec-dialog { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: start; text-align: left; margin-bottom: 14px; }
+.rec-dialog .thumb { width: 64px; }
+.rec-dialog p { margin: 0 0 6px; }
+.rec-dialog .muted { color: var(--muted); font-size: 13px; }
+
+/* Elegir un nombre */
+.name-box { width: min(520px, 100%); }
+.name-book { background: var(--cream); border-radius: 12px; padding: 9px 12px; margin: 0 0 12px; }
+.name-sub { margin: 14px 0 8px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.name-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.name-chip, .name-chip.saved > button:first-child { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #ded6ca; border-radius: 999px; background: #fffaf2; padding: 9px 15px; font-weight: 850; min-height: 44px; color: var(--ink); }
+.name-chip i { width: 11px; height: 11px; border-radius: 4px; flex: 0 0 auto; }
+.name-chip:hover, .name-chip:focus-visible { border-color: var(--ink); }
+.name-chip.saved { padding: 0; border: 0; background: transparent; gap: 0; }
+.name-chip.saved > button:first-child { border-radius: 999px 0 0 999px; border-right: 0; }
+.name-chip .forget { border: 1px solid #ded6ca; border-radius: 0 999px 999px 0; background: #fff1ee; color: #a2412f; min-height: 44px; min-width: 38px; font-size: 18px; font-weight: 900; }
+.name-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 16px; }
+.name-form input { width: 100%; min-width: 0; border: 1px solid #ded6ca; border-radius: 13px; padding: 12px 14px; font: inherit; font-size: 16px; background: #fff; }
+.name-form input:focus { outline: 0; border-color: var(--coral); box-shadow: 0 0 0 3px #ff786b22; }
+.name-error { color: #c0392b; font-weight: 800; min-height: 1.2em; margin: 8px 0 0; font-size: 14px; }
+
+/* Libros de viaje */
+.loan-new { align-self: center; }
+.loan-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 16px; margin-top: 20px; }
+.loan-card { background: #fff; border: 1px solid var(--line); border-radius: 22px; padding: 16px; box-shadow: var(--shadow); display: grid; gap: 12px; min-width: 0; }
+.loan-book { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 11px; align-items: center; border: 0; background: transparent; padding: 0; text-align: left; color: inherit; min-width: 0; }
+.loan-book .thumb { width: 52px; }
+.loan-title { display: grid; gap: 2px; min-width: 0; }
+.loan-title b { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.loan-title span { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loan-route { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; background: #faf7f1; border-radius: 16px; padding: 12px 10px; }
+.loan-side { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 0; }
+.loan-side .loan-who { max-width: 100%; }
+.loan-who > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.loan-who { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; border-radius: 999px; padding: 6px 11px; background: #fff; border: 2px solid var(--c, #ccc); font-weight: 900; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loan-who i { width: 10px; height: 10px; border-radius: 4px; background: var(--c, #ccc); flex: 0 0 auto; }
+.loan-who.to { background: var(--c, #ccc); color: #fff; }
+.loan-who.to i { background: #fff; }
+.loan-and { color: var(--muted); font-size: 12px; font-weight: 800; }
+.loan-arrow { position: relative; display: grid; place-items: center; width: 56px; height: 30px; font-size: 16px; }
+.loan-arrow i { position: absolute; left: 2px; right: 8px; top: 50%; height: 3px; margin-top: -1.5px; border-radius: 3px; background: repeating-linear-gradient(90deg, var(--coral) 0 8px, transparent 8px 13px); animation: loan-move 1.2s linear infinite; }
+.loan-arrow i::after { content: ''; position: absolute; right: -9px; top: 50%; margin-top: -7px; border: 7px solid transparent; border-left: 10px solid var(--coral); border-right: 0; }
+.loan-arrow::after { content: none; }
+@keyframes loan-move { from { background-position: 0 0; } to { background-position: 13px 0; } }
+.loan-since { color: #8a7a62; font-size: 12px; font-weight: 800; }
+.loan-back { border: 0; border-radius: 14px; background: var(--mint); color: #fff; font-weight: 900; padding: 12px; min-height: 46px; font-size: 16px; }
+@media (max-width: 760px) {
+  .loan-list { grid-template-columns: 1fr; }
+  .loan-new { width: 100%; }
+  .loan-arrow { width: 46px; }
+  .name-form { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .loan-arrow i { animation: none; } }

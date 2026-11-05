@@ -50,8 +50,13 @@
     ratings: 'book_ratings',
     journeys: 'reading_journeys',
     sessions: 'reading_sessions',
-    pending: 'reading_pending'
+    pending: 'reading_pending',
+    loans: 'book_loans',
+    recs: 'book_recommendations',
+    people: 'book_people'
   };
+  /** SQL de la versión 13 (préstamos, recomendaciones y nombres guardados). */
+  const NEW_SQL = 'libros/sql/v13_prestamos_y_recomendaciones.sql';
 
   const GIF = {
     boot: { src: './organizando-libreria.gif', alt: 'La biblioteca se está ordenando' },
@@ -63,6 +68,7 @@
   const MSG = {
     search: ['Tom está buscando el libro entre los estantes…', 'Consultando títulos, autores y ediciones…', 'Comprobando que la portada corresponda a esta edición…'],
     isbn: ['Tom está buscando el ISBN entre los estantes…', 'Consultando Open Library y Google Books…', 'Comprobando que la portada corresponda a esta edición…'],
+    rec: ['Hermione está apuntando la recomendación…', 'Guardándola para quien la va a leer…', 'Colocando cada dato en su lugar…'],
     pend: ['Hermione está apuntando la próxima aventura…', 'Guardándola en la lista de pendientes…', 'Colocando cada dato en su lugar…'],
     save: ['Hermione está archivando el nuevo libro…', 'Guardando el ejemplar en la biblioteca familiar…', 'Colocando cada dato en su lugar…'],
     update: ['Hermione está actualizando el libro…', 'Sincronizando los cambios con la biblioteca familiar…', 'Colocando cada dato en su lugar…'],
@@ -351,7 +357,7 @@
     ready: false,
     idIsUuid: true,
     missing: new Set(),
-    books: [], ratings: [], wishes: [], journeys: [], sessions: [], pending: [],
+    books: [], ratings: [], wishes: [], journeys: [], sessions: [], pending: [], loans: [], recs: [], people: [],
     bookMap: new Map(),
     page: 'search',
     search: { q: '', owner: null, format: null, location: null, page: 1, filtered: [], highlight: null, sort: readBookSort() },
@@ -363,7 +369,10 @@
     wishPerson: FAMILY[0],
     recommend: { genres: new Set(), lastId: null, list: [] },
     searchCtx: { purpose: 'add', person: null, results: [], stack: [] },
-    pick: { person: null },
+    pick: { person: null, mode: 'pend' },
+    pendPerson: FAMILY[0],
+    pendMore: {},
+    recCal: null,
     wishDetail: null,
     lastSync: 0
   };
@@ -442,6 +451,8 @@
     const k = idOf(id);
     S.ratings = S.ratings.filter((r) => idOf(r.book_id) !== k);
     S.pending = S.pending.filter((r) => idOf(r.book_id) !== k);
+    S.recs = S.recs.filter((r) => idOf(r.book_id) !== k);
+    S.loans = S.loans.filter((r) => idOf(r.book_id) !== k);
     S.sessions = S.sessions.filter((r) => idOf(r.book_id) !== k);
     S.journeys = S.journeys.filter((r) => idOf(r.book_id) !== k);
     rebuildIndex();
@@ -449,7 +460,7 @@
 
   /* ---------- Copia local de resiliencia ---------- */
   function writeCache() {
-    const data = { savedAt: new Date().toISOString(), books: S.books, ratings: S.ratings, wishes: S.wishes, journeys: S.journeys, sessions: S.sessions, pending: S.pending };
+    const data = { savedAt: new Date().toISOString(), books: S.books, ratings: S.ratings, wishes: S.wishes, journeys: S.journeys, sessions: S.sessions, pending: S.pending, loans: S.loans, recs: S.recs, people: S.people };
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify(data));
     } catch {
@@ -471,6 +482,9 @@
       S.journeys = c.journeys || [];
       S.sessions = c.sessions || [];
       S.pending = c.pending || [];
+      S.loans = c.loans || [];
+      S.recs = c.recs || [];
+      S.people = c.people || [];
       sortBooks();
       rebuildIndex();
       return true;
@@ -767,6 +781,7 @@
     ratings: () => renderRatings(),
     calendar: () => renderCalendar(),
     pending: () => renderPending(),
+    loans: () => renderLoans(),
     stats: () => renderStats()
   };
 
@@ -1117,6 +1132,10 @@
       `<li>${plural(rel.sessions, 'sesión', 'sesiones')} de lectura${journeys.length ? ` (${journeys.map((j) => `${esc(j.person)}: ${j.startedOn ? `inicio ${esc(fmtDate(j.startedOn))}` : ''}${j.finished ? `, fin ${esc(fmtDate(j.finishedOn))}` : ', en curso'}`).join('; ')})` : ''}: ${rel.sessions ? '<b>se eliminarán tras una segunda confirmación</b>' : 'ninguna'}.</li>`,
       `<li>${plural(sameIsbnWishes, 'deseo', 'deseos')} con este ISBN en Libros soñados: <b>se conservan</b>.</li>`
     ];
+    const recsN = S.recs.filter((r) => idOf(r.book_id) === idOf(b.id)).length;
+    const loan = loanOf(b.id);
+    if (recsN) lines.push(`<li>${plural(recsN, 'recomendación', 'recomendaciones')}: <b>se eliminarán</b>.</li>`);
+    if (loan) lines.push(`<li>Está prestado a ${esc(loan.borrower)}: <b>el préstamo se eliminará</b>.</li>`);
     const ok = await confirmDialog('¿Eliminar este libro?', `<p>Vas a eliminar «${esc(b.title)}»${b.owners.length ? ` de ${esc(b.owners.join(' y '))}` : ''}.</p><ul>${lines.join('')}</ul>`, 'Eliminar', 'danger', true);
     if (!ok) return;
     if (rel.sessions) {
@@ -2038,7 +2057,7 @@
   /* ---------- Búsqueda por título y/o autor ---------- */
   function openTitleSearch(purpose, person = null) {
     S.searchCtx = { purpose, person, results: [], stack: [] };
-    $('#searchModalTitle').textContent = purpose === 'wish' ? `Nuevo libro soñado para ${person}` : purpose === 'pend' ? `Aventura pendiente para ${person}` : 'Buscar por título o autor';
+    $('#searchModalTitle').textContent = purpose === 'wish' ? `Nuevo libro soñado para ${person}` : purpose === 'pend' ? `Aventura pendiente para ${person}` : purpose === 'rec' ? `Recomendar un libro a ${person}` : 'Buscar por título o autor';
     $('#searchModalHint').textContent = 'Escribe el título, el autor o los dos. Buscamos en Agapea, Open Library y Google Books.';
     $('#tsTitle').value = purpose === 'add' ? $('#fTitle').value.trim() : '';
     $('#tsAuthor').value = purpose === 'add' ? (authorsField.get()[0] || '') : '';
@@ -2217,6 +2236,8 @@
     if (S.searchCtx.purpose === 'wish') return saveWish(r, S.searchCtx.person, () => completeEdition(r));
     // Aventuras pendientes: igual que un libro soñado (una sola espera de Hermione).
     if (S.searchCtx.purpose === 'pend') return savePendingFrom(r, S.searchCtx.person, () => completeEdition(r));
+    // Recomendaciones: primero quién lo recomienda y después la misma espera de Hermione.
+    if (S.searchCtx.purpose === 'rec') return saveRecFrom(r, S.searchCtx.person, () => completeEdition(r));
     let full = r;
     if (r.isbn13 || r.isbn10 || (!r.synopsis && r.olWork)) {
       const res = await Loader.run({ gif: GIF.search, messages: [MSG.search[2], MSG.search[1]], retry: false }, () => completeEdition(r));
@@ -2249,7 +2270,7 @@
     });
     $('#editionManual').addEventListener('click', () => {
       closeModal($('#editionModal'));
-      if (S.searchCtx.purpose === 'wish' || S.searchCtx.purpose === 'pend') openTitleSearch(S.searchCtx.purpose, S.searchCtx.person);
+      if (['wish', 'pend', 'rec'].includes(S.searchCtx.purpose)) openTitleSearch(S.searchCtx.purpose, S.searchCtx.person);
       else if (S.searchCtx.purpose === 'day') useOutsideBookForDay({ title: $('#dayExtTitle').value.trim(), authors: normalizeAuthors([$('#dayExtAuthor').value]), genres: [] });
       else { showPage('add'); $('#fTitle').focus(); }
     });
@@ -2277,17 +2298,17 @@
     $('#scanStatus').textContent = `ISBN detectado: ${p.isbn13 || p.isbn10}`;
     stopScanner();
     closeModal($('#scanModal'));
-    if (scan.purpose === 'wish' || scan.purpose === 'pend') wishByIsbn(p, scan.person, scan.purpose);
+    if (['wish', 'pend', 'rec'].includes(scan.purpose)) wishByIsbn(p, scan.person, scan.purpose);
     else lookupIsbn(p.isbn13 || p.isbn10);
     return true;
   }
 
   /** purpose: 'add' (sumar un libro), 'wish' (libro soñado de «person») o 'pend' (aventura pendiente de «person»). */
   async function openScanner(purpose = 'add', person = null) {
-    scan.purpose = ['wish', 'pend'].includes(purpose) ? purpose : 'add';
+    scan.purpose = ['wish', 'pend', 'rec'].includes(purpose) ? purpose : 'add';
     scan.person = person;
     if (scan.purpose === 'add' && S.form.mode !== 'edit' && S.page === 'add' && !$('#fTitle').value.trim()) resetForm();
-    $('#scanTitle').textContent = scan.purpose === 'wish' ? `Escanear un libro soñado de ${person}` : scan.purpose === 'pend' ? `Escanear una aventura pendiente de ${person}` : 'Escanear el ISBN';
+    $('#scanTitle').textContent = scan.purpose === 'wish' ? `Escanear un libro soñado de ${person}` : scan.purpose === 'pend' ? `Escanear una aventura pendiente de ${person}` : scan.purpose === 'rec' ? `Escanear una recomendación para ${person}` : 'Escanear el ISBN';
     openModal($('#scanModal'));
     scan.open = true;
     const status = $('#scanStatus');
@@ -2318,12 +2339,12 @@
   /** Libro soñado o aventura pendiente escaneados: se busca su edición por ISBN y se guarda en la lista de esa persona. */
   async function wishByIsbn(p, person, purpose = 'wish') {
     S.searchCtx = { purpose, person, results: [], stack: [] };
-    if (purpose === 'pend') {
+    if (purpose === 'pend' || purpose === 'rec') {
       // Si ese ISBN ya está en casa, se apunta el ejemplar de casa sin buscar fuera.
       const home = homeBooks().find((b) => (p.isbn13 && b.isbn13 === p.isbn13) || (p.isbn10 && b.isbn10 === p.isbn10));
-      if (home) return addPending(home.id, person);
+      if (home) return purpose === 'rec' ? addRecFromHome(home.id, person) : addPending(home.id, person);
     }
-    const save = (r) => (purpose === 'pend' ? savePendingFrom(r, person) : saveWish(r, person));
+    const save = (r) => (purpose === 'pend' ? savePendingFrom(r, person) : purpose === 'rec' ? saveRecFrom(r, person) : saveWish(r, person));
     const res = await Loader.run({ gif: GIF.search, messages: MSG.isbn }, async () => withSynopsis(await verifyCovers(await lookupAllByIsbn(p))));
     if (!res.ok) return;
     const list = res.value;
@@ -2545,8 +2566,8 @@
      12. DESTINOS DE PAPEL (wishlist familiar)
      ================================================================= */
 
-  function missingNotice(table) {
-    return `<div class="nodata">Esta sección necesita la tabla <b>${esc(table)}</b>. Ejecuta <b>libros/sql/biblioteca_migracion.sql</b> en el SQL Editor de Supabase y recarga la aplicación.</div>`;
+  function missingNotice(table, file = 'libros/sql/biblioteca_migracion.sql') {
+    return `<div class="nodata">Esta sección necesita la tabla <b>${esc(table)}</b>. Ejecuta <b>${esc(file)}</b> en el SQL Editor de Supabase y recarga la aplicación.</div>`;
   }
 
   function personCard(person, inner, addLabel, addAttr) {
@@ -3059,6 +3080,15 @@
           removedPending = (gone || []).length;
         } catch (pe) { console.warn('No se pudo actualizar Aventuras pendientes', pe); }
       }
+      // Recomendaciones: empezar a leerlo la quita (también si se abrió desde «Apuntar en Mi ruta»).
+      if (!S.missing.has(T.recs)) {
+        try {
+          const goneR = await q(S.db.from(T.recs).delete().eq('book_id', b.id).eq('person', person).select('id'));
+          (goneR || []).forEach((r) => removeLocal(S.recs, r.id));
+          removedPending += (goneR || []).length;
+        } catch (re) { console.warn('No se pudieron actualizar las recomendaciones', re); }
+      }
+      S.recCal = null;
       setSync('Compartido', 'online');
       const justFinished = finished && !(ctx.sessionId && ctx.wasFinished);
       S.cal.ctx = null;
@@ -3259,43 +3289,97 @@
   }
 
   /* =================================================================
-     16. PRÓXIMAS PARADAS
+     16. AVENTURAS PENDIENTES (por persona: pendientes de leer + recomendaciones)
      ================================================================= */
-  function renderPending() {
-    const grid = $('#pendingGrid');
-    if (S.missing.has(T.pending)) { grid.innerHTML = missingNotice(T.pending); return; }
-    grid.innerHTML = FAMILY.map((person) => {
-      const list = S.pending.filter((p) => p.person === person).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
-      const items = list.map((p) => {
-        const b = bookById(p.book_id);
-        if (!b) return '';
-        return `<div class="item-card">
-          ${thumbHtml(b.cover_url, b.title)}
-          <button type="button" class="ic-body" data-pend-open="${esc(b.id)}"><b>${esc(b.title)}</b><span>${esc(b.authors.join(', ') || 'Autor desconocido')}</span><small>🔖 añadido el ${esc(fmtDate(p.created_at))}${inHome(b) ? '' : ' · <em class="not-home">no está en casa</em>'}</small></button>
-          <div class="ic-actions">
-            <button type="button" class="go-cal" data-pend-cal="${esc(p.id)}" aria-label="Empezar a leer: abrir Mi ruta de lectura" title="Empezar a leer">📅</button>
-            <button type="button" class="rm" data-pend-rm="${esc(p.id)}" aria-label="Eliminar de Aventuras pendientes" title="Eliminar">🗑</button>
-          </div>
-        </div>`;
-      }).join('');
-      return `<section class="person-card pend-card" data-person="${esc(person)}">
-        <div class="person-card-head">
-          <div class="person-name"><i class="person-dot" style="background:${esc(colorOf(person))}"></i><h3>${esc(person)}</h3><span class="person-count">${plural(list.length, 'libro', 'libros')}</span></div>
-          <div class="pend-add">
-            <button type="button" class="add-btn home" data-addpend="${esc(person)}" title="Elegir un libro de la biblioteca de casa">📚 De casa</button>
-            <button type="button" class="add-btn" data-searchpend="${esc(person)}" title="Buscar por título o autor (aunque no esté en casa)">🔎 Buscar</button>
-            <button type="button" class="add-btn scan" data-scanpend="${esc(person)}" title="Escanear el código de barras (aunque no esté en casa)">📷 Escanear</button>
-          </div>
-        </div>
-        <div class="person-list">${items || '<div class="empty-note">Sin aventuras pendientes por ahora.</div>'}</div>
-      </section>`;
-    }).join('');
+  const PEND_LIMIT = 5;
+  const sortByCreated = (a, b) => String(a.created_at).localeCompare(String(b.created_at));
+
+  /** Lista con un máximo de 5 visibles y botón «Ver más». */
+  function limitedList(rows, key, renderRow, emptyText) {
+    if (!rows.length) return `<div class="empty-note">${esc(emptyText)}</div>`;
+    const open = !!S.pendMore[key];
+    const shown = open ? rows : rows.slice(0, PEND_LIMIT);
+    const more = rows.length > PEND_LIMIT
+      ? `<button type="button" class="see-more" data-pend-more="${esc(key)}" aria-expanded="${open}">${open ? 'Ver menos ▲' : `Ver más (${rows.length - PEND_LIMIT} más) ▼`}</button>`
+      : '';
+    return shown.map(renderRow).join('') + more;
   }
 
-  function openPick(person) {
+  function pendingRow(p) {
+    const b = bookById(p.book_id);
+    if (!b) return '';
+    return `<div class="item-card">
+      ${thumbHtml(b.cover_url, b.title)}
+      <button type="button" class="ic-body" data-pend-open="${esc(b.id)}"><b>${esc(b.title)}</b><span>${esc(b.authors.join(', ') || 'Autor desconocido')}</span><small>🔖 añadido el ${esc(fmtDate(p.created_at))}${inHome(b) ? '' : ' · <em class="not-home">no está en casa</em>'}</small></button>
+      <div class="ic-actions">
+        <button type="button" class="go-cal" data-pend-cal="${esc(p.id)}" aria-label="Empezar a leer: abrir Mi ruta de lectura" title="Empezar a leer">📅</button>
+        <button type="button" class="rm" data-pend-rm="${esc(p.id)}" aria-label="Eliminar de Aventuras pendientes" title="Eliminar">🗑</button>
+      </div>
+    </div>`;
+  }
+
+  function recRow(r) {
+    const b = bookById(r.book_id);
+    if (!b) return '';
+    return `<div class="item-card rec-item">
+      ${thumbHtml(b.cover_url, b.title)}
+      <button type="button" class="ic-body" data-rec-open="${esc(r.id)}"><b>${esc(b.title)}</b><span>${esc(b.authors.join(', ') || 'Autor desconocido')}</span><small>💌 Lo recomienda <span class="rec-by" style="--c:${esc(nameColor(r.recommended_by))}">${esc(r.recommended_by)}</span> · ${esc(fmtDate(r.created_at))}${inHome(b) ? '' : ' · <em class="not-home">no está en casa</em>'}</small></button>
+      <div class="ic-actions">
+        <button type="button" class="go-cal" data-rec-open="${esc(r.id)}" aria-label="Opciones de la recomendación" title="Opciones">⋯</button>
+      </div>
+    </div>`;
+  }
+
+  function renderPending() {
+    const grid = $('#pendingGrid');
+    if (!FAMILY.includes(S.pendPerson)) S.pendPerson = FAMILY[0];
+    const person = S.pendPerson;
+    $('#pendingPeople').innerHTML = personTabs(person, 'data-pend-person');
+    const dot = `<i class="person-dot" style="background:${esc(colorOf(person))}"></i>`;
+    const buttons = (kind) => `<div class="pend-add">
+        <button type="button" class="add-btn home" data-add${kind}="${esc(person)}" title="Elegir un libro de la biblioteca de casa">📚 De casa</button>
+        <button type="button" class="add-btn" data-search${kind}="${esc(person)}" title="Buscar por título o autor (aunque no esté en casa)">🔎 Buscar</button>
+        <button type="button" class="add-btn scan" data-scan${kind}="${esc(person)}" title="Escanear el código de barras (aunque no esté en casa)">📷 Escanear</button>
+      </div>`;
+    let pendBody;
+    let pendCount = '';
+    if (S.missing.has(T.pending)) pendBody = missingNotice(T.pending);
+    else {
+      const list = S.pending.filter((p) => p.person === person && bookById(p.book_id)).sort(sortByCreated);
+      pendCount = `<span class="person-count">${plural(list.length, 'libro', 'libros')}</span>`;
+      pendBody = limitedList(list, 'pend', pendingRow, 'Sin aventuras pendientes por ahora.');
+    }
+    let recBody;
+    let recCount = '';
+    if (S.missing.has(T.recs)) recBody = missingNotice(T.recs, NEW_SQL);
+    else {
+      const list = S.recs.filter((r) => r.person === person && bookById(r.book_id)).sort(sortByCreated);
+      recCount = `<span class="person-count">${plural(list.length, 'libro', 'libros')}</span>`;
+      recBody = limitedList(list, 'rec', recRow, `Nadie le ha recomendado todavía un libro a ${person}.`);
+    }
+    grid.innerHTML = `<section class="person-card pend-card" data-person="${esc(person)}">
+        <div class="person-card-head">
+          <div class="person-name">${dot}<h3>🔖 Pendientes de leer</h3>${pendCount}</div>
+          ${buttons('pend')}
+        </div>
+        <div class="person-list">${pendBody}</div>
+      </section>
+      <section class="person-card pend-card rec-card" data-person="${esc(person)}">
+        <div class="person-card-head">
+          <div class="person-name">${dot}<h3>💌 Recomendaciones</h3>${recCount}</div>
+          ${buttons('rec')}
+        </div>
+        <p class="rec-hint">Cualquiera puede recomendarle un libro a ${esc(person)}, esté en casa o no. Toca un libro para pasarlo a Libros soñados, apuntarlo en Mi ruta de lectura o quitarlo.</p>
+        <div class="person-list">${recBody}</div>
+      </section>`;
+  }
+
+  /** Elegir un libro de casa. mode: 'pend' | 'rec' | 'loan'. */
+  function openPick(person, mode = 'pend') {
     S.pick.person = person;
-    $('#pickTitle').textContent = `Próxima parada para ${person}`;
-    $('#pickHint').textContent = 'Busca por título o autor dentro de la biblioteca familiar.';
+    S.pick.mode = mode;
+    $('#pickTitle').textContent = mode === 'loan' ? '¿Qué libro se va de viaje?' : mode === 'rec' ? `Recomendar un libro a ${person}` : `Próxima parada para ${person}`;
+    $('#pickHint').textContent = mode === 'loan' ? 'Elige el libro de casa que vas a prestar.' : 'Busca por título o autor dentro de la biblioteca familiar.';
     $('#pickQuery').value = '';
     renderPick();
     openModal($('#pickModal'));
@@ -3303,10 +3387,15 @@
   }
   function renderPick() {
     const qv = $('#pickQuery').value.trim();
-    const list = qv ? libraryMatches(qv, 40) : homeBooks().sort((a, b) => collator.compare(a.title, b.title)).slice(0, 30);
+    const mode = S.pick.mode || 'pend';
+    const pool = qv ? libraryMatches(qv, 40) : homeBooks().sort((a, b) => collator.compare(a.title, b.title)).slice(0, 30);
+    const list = mode === 'loan' ? pool.filter(inHome) : pool;
     $('#pickResults').innerHTML = list.length ? list.map((b) => {
-      const already = S.pending.some((p) => idOf(p.book_id) === idOf(b.id) && p.person === S.pick.person);
-      return libraryItem(b, 'data-pick-book', already ? '<span class="ri-tags"><span class="ri-tag exact">Ya está en su lista</span></span>' : '');
+      let tag = '';
+      if (mode === 'pend' && S.pending.some((p) => idOf(p.book_id) === idOf(b.id) && p.person === S.pick.person)) tag = 'Ya está en su lista';
+      if (mode === 'rec' && S.recs.some((r) => idOf(r.book_id) === idOf(b.id) && r.person === S.pick.person)) tag = 'Ya se lo han recomendado';
+      if (mode === 'loan') { const l = loanOf(b.id); if (l) tag = `Prestado a ${l.borrower}`; }
+      return libraryItem(b, 'data-pick-book', tag ? `<span class="ri-tags"><span class="ri-tag exact">${esc(tag)}</span></span>` : '');
     }).join('') : `<div class="empty-note">${S.books.length ? 'No hay ningún libro de casa con ese título o autor.' : 'La biblioteca todavía está vacía.'}</div>`;
   }
   async function addPending(bookId, person) {
@@ -3321,18 +3410,32 @@
       toast(reading && !reading.empty ? `Añadido. Ojo: ${person} ya lo está leyendo.` : `Añadido a las aventuras pendientes de ${person}`);
     } catch (e) { toast(explainError(e), 4000); }
   }
-  /** Aventura pendiente buscada o escaneada: usa el ejemplar de casa si existe; si no, la apunta como libro de fuera de casa. */
-  async function savePendingFrom(r, person, prepare = null) {
-    closeModal($('#editionModal'));
-    const res = await Loader.run({ gif: GIF.save, messages: MSG.pend }, async () => {
+  /** Busca o crea el libro (de casa o «fuera de casa») para una edición encontrada. */
+  async function bookForResult(r, prepare, messages) {
+    const res = await Loader.run({ gif: GIF.save, messages }, async () => {
       const full = prepare ? await prepare() : r;
       const found = existingBookFor(full);
       if (found) return found;
       return setBookLocal(await db.insert(T.books, await outsideBookRow(full)));
     });
-    if (!res.ok || !res.value) return;
+    if (!res.ok || !res.value) return null;
     refreshViews();
-    await addPending(res.value.id, person);
+    return res.value;
+  }
+  /** Aventura pendiente buscada o escaneada: usa el ejemplar de casa si existe; si no, la apunta como libro de fuera de casa. */
+  async function savePendingFrom(r, person, prepare = null) {
+    closeModal($('#editionModal'));
+    const b = await bookForResult(r, prepare, MSG.pend);
+    if (b) await addPending(b.id, person);
+  }
+
+  /** Un libro de fuera de casa que ya no está en ninguna lista (ni lecturas ni valoraciones) se borra. */
+  async function cleanupOutsideBook(b) {
+    if (!b || inHome(b)) return;
+    const k = idOf(b.id);
+    const used = (list) => list.some((x) => idOf(x.book_id) === k);
+    if (used(S.pending) || used(S.recs) || used(S.loans) || used(S.journeys) || used(S.ratings) || used(S.sessions)) return;
+    try { await db.remove(T.books, b.id); removeBookLocal(b.id); } catch (err) { console.warn('No se pudo limpiar el libro de fuera de casa', err); }
   }
 
   async function removePending(id) {
@@ -3343,26 +3446,140 @@
     try {
       await db.remove(T.pending, p.id);
       removeLocal(S.pending, p.id);
-      // Un libro de fuera de casa que solo estaba aquí (sin lecturas, valoraciones ni otras listas) se borra.
-      if (b && !inHome(b) && !S.pending.some((x) => idOf(x.book_id) === idOf(b.id))
-          && !S.journeys.some((j) => idOf(j.book_id) === idOf(b.id)) && !S.ratings.some((x) => idOf(x.book_id) === idOf(b.id))) {
-        try { await db.remove(T.books, b.id); removeBookLocal(b.id); } catch (err) { console.warn('No se pudo limpiar el libro de fuera de casa', err); }
-      }
+      await cleanupOutsideBook(b);
       renderPending();
       saveCache();
       toast('Quitado de Aventuras pendientes');
     } catch (e) { toast(explainError(e), 4000); }
   }
 
+  /* ---------- Recomendaciones ---------- */
+  const recFor = (bookId, person) => S.recs.find((r) => idOf(r.book_id) === idOf(bookId) && r.person === person) || null;
+
+  async function addRec(bookId, person, by) {
+    const prev = recFor(bookId, person);
+    if (prev) { toast(`${prev.recommended_by} ya se lo había recomendado a ${person}`); return false; }
+    try {
+      const row = await db.insert(T.recs, { id: uuid(), book_id: bookId, person, recommended_by: by });
+      upsertLocal(S.recs, row);
+      renderPending();
+      saveCache();
+      toast(`💌 Recomendación de ${by} para ${person}`);
+      return true;
+    } catch (e) {
+      if (String(e?.code) === '23505') toast(`Ese libro ya estaba recomendado a ${person}`);
+      else toast(explainError(e), 4000);
+      return false;
+    }
+  }
+  /** Pregunta quién recomienda el libro (antes de guardarlo). */
+  function askRecommender(person, title) {
+    return askName({ title: '¿Quién lo recomienda?', hint: `Recomendación para ${person}. Elige a alguien de la familia o escribe otro nombre.`, book: title });
+  }
+  async function addRecFromHome(bookId, person) {
+    const b = bookById(bookId);
+    if (!b) return;
+    if (recFor(bookId, person)) { toast(`Ese libro ya está en las recomendaciones de ${person}`); return; }
+    closeModal($('#pickModal'));
+    const by = await askRecommender(person, b.title);
+    if (by) await addRec(b.id, person, by);
+  }
+  /** Recomendación buscada o escaneada (puede no estar en casa). */
+  async function saveRecFrom(r, person, prepare = null) {
+    closeModal($('#editionModal'));
+    const by = await askRecommender(person, r.title);
+    if (!by) return;
+    const b = await bookForResult(r, prepare, MSG.rec);
+    if (b) await addRec(b.id, person, by);
+  }
+
+  async function openRec(id) {
+    const r = S.recs.find((x) => idOf(x.id) === idOf(id));
+    const b = r && bookById(r.book_id);
+    if (!r || !b) return;
+    const res = await dialog({
+      title: b.title,
+      html: true,
+      message: `<div class="rec-dialog">${thumbHtml(b.cover_url, b.title)}<div><p><b>${esc(b.authors.join(', ') || 'Autor desconocido')}</b></p><p>💌 ${esc(r.recommended_by)} se lo recomienda a <b>${esc(r.person)}</b> desde el ${esc(fmtDate(r.created_at))}.</p><p class="muted">¿Qué hacemos con él? Cualquiera de las tres opciones lo quita de las recomendaciones.</p></div></div>`,
+      buttons: [
+        { label: '✨ A Libros soñados', value: 'wish', kind: 'primary' },
+        { label: '📅 Apuntar en Mi ruta', value: 'cal', kind: 'primary' },
+        { label: '🗑 Quitar de la lista', value: 'rm', kind: 'danger' },
+        { label: 'Cancelar', value: null }
+      ]
+    });
+    if (res.value === 'wish') return recToWish(r, b);
+    if (res.value === 'cal') return recToCalendar(r, b);
+    if (res.value === 'rm') return removeRec(r, b, true);
+  }
+
+  async function removeRec(r, b, ask = false) {
+    if (ask && !(await confirmDialog('Quitar la recomendación', `¿Quitar «${b?.title || 'este libro'}» de las recomendaciones de ${r.person}?`, 'Quitar', 'danger'))) return false;
+    try {
+      await db.remove(T.recs, r.id);
+      removeLocal(S.recs, r.id);
+      await cleanupOutsideBook(b);
+      renderPending();
+      saveCache();
+      if (ask) toast('Recomendación quitada');
+      return true;
+    } catch (e) { toast(explainError(e), 4000); return false; }
+  }
+
+  /** Pasa la recomendación a Libros soñados; solo se quita de la lista cuando el deseo está guardado. */
+  async function recToWish(r, b) {
+    if (S.missing.has(T.wishes)) { toast('Falta la tabla de Libros soñados en Supabase.', 4000); return; }
+    const person = r.person;
+    const dup = S.wishes.find((w) => w.person === person && ((b.isbn13 && w.isbn13 === b.isbn13) || (norm(w.title) === norm(b.title) && norm(arr(w.authors)[0]) === norm(b.authors[0]))));
+    if (!dup) {
+      const res = await Loader.run({ gif: GIF.save, messages: MSG.wish }, () => db.insert(T.wishes, {
+        ...newId(), person, title: b.title, subtitle: b.subtitle || null, authors: b.authors || [],
+        isbn13: b.isbn13 || null, isbn10: b.isbn10 || null, publisher: b.publisher || null, published_year: b.published_year || null,
+        published_date: b.published_date || null, edition: b.edition || null, pages: b.pages || null, genres: b.genres || [],
+        language: b.language || null, cover_url: b.cover_url || null, openlibrary_work_id: b.openlibrary_work_id || null,
+        openlibrary_edition_id: b.openlibrary_edition_id || null, google_books_id: b.google_books_id || null,
+        synopsis: b.synopsis || null
+      }));
+      if (!res.ok || !res.value) return;   // no se ha guardado: la recomendación se queda
+      upsertLocal(S.wishes, res.value);
+    }
+    await removeRec(r, b);
+    toast(dup ? `Ya estaba en los Libros soñados de ${person}: quitado de recomendaciones` : `✨ Pasado a los Libros soñados de ${person}`);
+  }
+
+  /** Abre Mi ruta de lectura con el libro; la recomendación se quita al guardar la lectura. */
+  function recToCalendar(r) {
+    S.recCal = { bookId: idOf(r.book_id), person: r.person };
+    openCalendarFor(r.person, r.book_id);
+    toast('Apunta la página de hoy: al guardarla se quita de recomendaciones.', 3800);
+  }
+
   function bindPending() {
+    $('#pendingPeople').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-pend-person]');
+      if (!b) return;
+      S.pendPerson = b.dataset.pendPerson;
+      S.pendMore = {};
+      renderPending();
+    });
     $('#pendingGrid').addEventListener('click', (e) => {
       const t = e.target;
+      const more = t.closest('[data-pend-more]');
+      if (more) { const k = more.dataset.pendMore; S.pendMore[k] = !S.pendMore[k]; renderPending(); return; }
       const add = t.closest('[data-addpend]');
-      if (add) return openPick(add.dataset.addpend);
+      if (add) return openPick(add.dataset.addpend, 'pend');
       const search = t.closest('[data-searchpend]');
       if (search) return openTitleSearch('pend', search.dataset.searchpend);
       const scanBtn = t.closest('[data-scanpend]');
       if (scanBtn) return openScanner('pend', scanBtn.dataset.scanpend);
+      const addR = t.closest('[data-addrec]');
+      if (addR) return openPick(addR.dataset.addrec, 'rec');
+      const searchR = t.closest('[data-searchrec]');
+      if (searchR) return openTitleSearch('rec', searchR.dataset.searchrec);
+      const scanR = t.closest('[data-scanrec]');
+      if (scanR) return openScanner('rec', scanR.dataset.scanrec);
+      const rec = t.closest('[data-rec-open]');
+      if (rec) return openRec(rec.dataset.recOpen);
       const cal = t.closest('[data-pend-cal]');
       if (cal) { const p = S.pending.find((x) => idOf(x.id) === cal.dataset.pendCal); if (p) openCalendarFor(p.person, p.book_id); return; }
       const rm = t.closest('[data-pend-rm]');
@@ -3374,7 +3591,180 @@
     $('#pickQuery').addEventListener('input', renderPick);
     $('#pickResults').addEventListener('click', (e) => {
       const b = e.target.closest('[data-pick-book]');
-      if (b) addPending(b.dataset.pickBook, S.pick.person);
+      if (!b) return;
+      const mode = S.pick.mode || 'pend';
+      if (mode === 'rec') addRecFromHome(b.dataset.pickBook, S.pick.person);
+      else if (mode === 'loan') lendBook(b.dataset.pickBook);
+      else addPending(b.dataset.pickBook, S.pick.person);
+    });
+  }
+
+  /* =================================================================
+     16 b. NOMBRES (familia u otras personas, que se guardan para la próxima vez)
+     ================================================================= */
+  const NAME_COLORS = ['#7b8db8', '#c98bb9', '#d39b5d', '#6aa7b8', '#9a8fd1', '#b7a05a'];
+  /** Color de una persona: el suyo si es de la familia; si no, uno fijo según el nombre. */
+  function nameColor(name) {
+    if (FAMILY.includes(name)) return colorOf(name);
+    let h = 0;
+    for (const ch of norm(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return NAME_COLORS[h % NAME_COLORS.length];
+  }
+  const cleanName = (v) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  const familyName = (v) => FAMILY.find((p) => norm(p) === norm(v)) || null;
+
+  /** Guarda un nombre nuevo de fuera de la familia (si no estaba ya). */
+  async function rememberName(name) {
+    if (familyName(name) || S.missing.has(T.people)) return;
+    const key = norm(name);
+    if (S.people.some((p) => p.name_key === key)) return;
+    try {
+      const row = await db.upsert(T.people, { id: uuid(), name, name_key: key }, 'name_key');
+      upsertLocal(S.people, row);
+      saveCache();
+    } catch (e) { console.warn('No se pudo guardar el nombre para la próxima vez', e); }
+  }
+  async function forgetName(id) {
+    const p = S.people.find((x) => idOf(x.id) === idOf(id));
+    if (!p) return;
+    if (!(await confirmDialog('Olvidar este nombre', `¿Quitar «${p.name}» de la lista de nombres guardados? Los préstamos y recomendaciones que ya lo usan no cambian.`, 'Quitar', 'danger'))) return;
+    try { await db.remove(T.people, p.id); removeLocal(S.people, p.id); saveCache(); } catch (e) { toast(explainError(e), 4000); }
+  }
+
+  const nameAsk = { resolve: null, opts: null };
+  /** Pide un nombre: un botón por persona de la familia, los nombres guardados o uno escrito. Devuelve el nombre o null. */
+  function askName(opts) {
+    if (nameAsk.resolve) nameAsk.resolve(null);
+    return new Promise((resolve) => {
+      nameAsk.resolve = resolve;
+      nameAsk.opts = opts;
+      $('#nameTitle').textContent = opts.title;
+      $('#nameHint').textContent = opts.hint || '';
+      $('#nameBook').innerHTML = opts.book ? `📖 <b>${esc(opts.book)}</b>` : '';
+      $('#nameBook').hidden = !opts.book;
+      $('#nameInput').value = '';
+      $('#nameError').textContent = '';
+      paintNames();
+      openModal($('#nameModal'));
+    });
+  }
+  function paintNames() {
+    const exclude = (nameAsk.opts?.exclude || []).map(norm);
+    $('#nameFamily').innerHTML = FAMILY.filter((p) => !exclude.includes(norm(p))).map((p) => `<button type="button" class="name-chip" data-name="${esc(p)}"><i style="background:${esc(colorOf(p))}"></i>${esc(p)}</button>`).join('');
+    const saved = [...S.people].filter((p) => !exclude.includes(p.name_key)).sort((a, b) => collator.compare(a.name, b.name));
+    $('#nameSavedWrap').hidden = !saved.length;
+    $('#nameSaved').innerHTML = saved.map((p) => `<span class="name-chip saved"><button type="button" data-name="${esc(p.name)}"><i style="background:${esc(nameColor(p.name))}"></i>${esc(p.name)}</button><button type="button" class="forget" data-forget-name="${esc(p.id)}" aria-label="Olvidar el nombre ${esc(p.name)}" title="Olvidar este nombre">×</button></span>`).join('');
+  }
+  function finishName(value) {
+    const r = nameAsk.resolve;
+    nameAsk.resolve = null;
+    closeModal($('#nameModal'));
+    r?.(value);
+  }
+  async function pickName(raw) {
+    const typed = cleanName(raw);
+    if (!typed) { $('#nameError').textContent = 'Escribe un nombre o elige uno de la lista.'; $('#nameInput').focus(); return; }
+    const exclude = (nameAsk.opts?.exclude || []).map(norm);
+    if (exclude.includes(norm(typed))) { $('#nameError').textContent = nameAsk.opts.excludeText || 'Ese nombre no vale aquí.'; return; }
+    const fam = familyName(typed);
+    const saved = S.people.find((p) => p.name_key === norm(typed));
+    const name = fam || saved?.name || typed;
+    if (!fam && !saved) await rememberName(name);
+    finishName(name);
+  }
+  function bindNames() {
+    $('#nameClose').addEventListener('click', () => finishName(null));
+    $('#nameModal').addEventListener('click', (e) => {
+      if (e.target.id === 'nameModal') return finishName(null);
+      const f = e.target.closest('[data-forget-name]');
+      if (f) { forgetName(f.dataset.forgetName).then(paintNames); return; }
+      const n = e.target.closest('[data-name]');
+      if (n) pickName(n.dataset.name);
+    });
+    $('#nameForm').addEventListener('submit', (e) => { e.preventDefault(); pickName($('#nameInput').value); });
+  }
+
+  /* =================================================================
+     16 c. LIBROS DE VIAJE (préstamos)
+     ================================================================= */
+  const loanOf = (bookId) => S.loans.find((l) => idOf(l.book_id) === idOf(bookId)) || null;
+  const daysSince = (iso) => Math.max(0, Math.round((parseISODate(todayISO()) - parseISODate(String(iso).slice(0, 10))) / 86400000));
+  const whoChip = (name, cls = '') => `<span class="loan-who ${cls}" style="--c:${esc(nameColor(name))}" title="${esc(name)}"><i></i><span>${esc(name)}</span></span>`;
+
+  function renderLoans() {
+    const grid = $('#loansGrid');
+    if (S.missing.has(T.loans)) { grid.innerHTML = missingNotice(T.loans, NEW_SQL); return; }
+    const list = S.loans.filter((l) => bookById(l.book_id)).sort((a, b) => String(a.lent_on || a.created_at).localeCompare(String(b.lent_on || b.created_at)));
+    if (!list.length) { grid.innerHTML = '<div class="empty-note">Todos los libros están en casa. Pulsa «Prestar un libro» cuando se vaya alguno de viaje.</div>'; return; }
+    grid.innerHTML = list.map((l) => {
+      const b = bookById(l.book_id);
+      const owners = String(l.lender || '').split(' y ').map((x) => x.trim()).filter(Boolean);
+      const from = owners.length ? owners.map((o) => whoChip(o, 'from')).join('<span class="loan-and">y</span>') : whoChip('Casa', 'from');
+      const days = daysSince(l.lent_on || l.created_at);
+      return `<article class="loan-card">
+        <button type="button" class="loan-book" data-loan-open="${esc(b.id)}">${thumbHtml(b.cover_url, b.title)}<span class="loan-title"><b>${esc(b.title)}</b><span>${esc(b.authors.join(', ') || 'Autor desconocido')}</span></span></button>
+        <div class="loan-route" aria-label="${esc(`De ${owners.join(' y ') || 'casa'} a ${l.borrower}`)}">
+          <div class="loan-side">${from}</div>
+          <span class="loan-arrow" aria-hidden="true"><i></i>📖</span>
+          <div class="loan-side">${whoChip(l.borrower, 'to')}</div>
+        </div>
+        <small class="loan-since">🗓️ Prestado el ${esc(fmtDate(l.lent_on || l.created_at))} · ${days === 0 ? 'hoy' : days === 1 ? 'hace 1 día' : `hace ${days} días`}</small>
+        <button type="button" class="loan-back" data-loan-back="${esc(l.id)}">✅ Devuelto</button>
+      </article>`;
+    }).join('');
+  }
+
+  async function lendBook(bookId) {
+    const b = bookById(bookId);
+    if (!b) return;
+    const prev = loanOf(b.id);
+    if (prev) { toast(`«${b.title}» ya está prestado a ${prev.borrower}`); return; }
+    closeModal($('#pickModal'));
+    const owners = b.owners || [];
+    const borrower = await askName({
+      title: '¿A quién se lo prestas?',
+      hint: owners.length ? `Es de ${owners.join(' y ')}. Elige a alguien de la familia o escribe otro nombre.` : 'Elige a alguien de la familia o escribe otro nombre.',
+      book: b.title,
+      exclude: owners,
+      excludeText: 'El libro ya es suyo: elige a otra persona.'
+    });
+    if (!borrower) return;
+    try {
+      const row = await db.insert(T.loans, { id: uuid(), book_id: b.id, lender: owners.join(' y ') || null, borrower, lent_on: todayISO() });
+      upsertLocal(S.loans, row);
+      renderLoans();
+      saveCache();
+      toast(`🤝 «${b.title}» se va de viaje con ${borrower}`);
+    } catch (e) {
+      if (String(e?.code) === '23505') toast('Ese libro ya estaba prestado.');
+      else toast(explainError(e), 4000);
+    }
+  }
+
+  async function returnLoan(id) {
+    const l = S.loans.find((x) => idOf(x.id) === idOf(id));
+    if (!l) return;
+    const b = bookById(l.book_id);
+    if (!(await confirmDialog('¿Ha vuelto a casa?', `¿${l.borrower} ya ha devuelto «${b?.title || 'el libro'}»${l.lender ? ` a ${l.lender}` : ''}?`, '✅ Sí, devuelto'))) return;
+    try {
+      await db.remove(T.loans, l.id);
+      removeLocal(S.loans, l.id);
+      renderLoans();
+      saveCache();
+      toast('📚 ¡De vuelta en casa!');
+    } catch (e) { toast(explainError(e), 4000); }
+  }
+
+  function bindLoans() {
+    $('#loanNew').addEventListener('click', () => {
+      if (S.missing.has(T.loans)) { toast('Falta preparar los préstamos en Supabase.', 4000); return; }
+      openPick(null, 'loan');
+    });
+    $('#loansGrid').addEventListener('click', (e) => {
+      const back = e.target.closest('[data-loan-back]');
+      if (back) return returnLoan(back.dataset.loanBack);
+      const open = e.target.closest('[data-loan-open]');
+      if (open) openBookDetail(open.dataset.loanOpen);
     });
   }
 
@@ -3640,11 +4030,11 @@
   /* =================================================================
      18. CARGA, SINCRONIZACIÓN EN TIEMPO REAL Y ARRANQUE
      ================================================================= */
-  const LIST_OF = { [T.wishes]: 'wishes', [T.ratings]: 'ratings', [T.journeys]: 'journeys', [T.sessions]: 'sessions', [T.pending]: 'pending' };
+  const LIST_OF = { [T.wishes]: 'wishes', [T.ratings]: 'ratings', [T.journeys]: 'journeys', [T.sessions]: 'sessions', [T.pending]: 'pending', [T.loans]: 'loans', [T.recs]: 'recs', [T.people]: 'people' };
 
   async function loadAll() {
     const books = await db.all(T.books);
-    const optional = [T.wishes, T.ratings, T.journeys, T.sessions, T.pending];
+    const optional = [T.wishes, T.ratings, T.journeys, T.sessions, T.pending, T.loans, T.recs, T.people];
     const results = await Promise.allSettled(optional.map((t) => db.all(t)));
     S.books = books.map(prepBook);
     S.idIsUuid = books.every((b) => isUuid(b.id));
@@ -3851,6 +4241,8 @@
     bindRatings();
     bindCalendar();
     bindPending();
+    bindNames();
+    bindLoans();
     bindStats();
     resetForm();
     if (loadCache()) applySearch();

@@ -1,5 +1,14 @@
 # Registro de archivos modificados y añadidos
 
+## Versión 13 · 05/11/2026
+
+- **Biblioteca**: nueva sección «Libros de viaje» (préstamos: libro de casa → persona de la familia o nombre escrito, flecha dueño → quien lo tiene y botón «Devuelto»). «Aventuras pendientes» con pestañas por persona: «Pendientes de leer» y «Recomendaciones» (quién lo recomienda; pasar a Libros soñados, a Mi ruta de lectura o quitar), 5 a la vista y «Ver más». Nombres de fuera de la familia guardados para la próxima vez.
+  Archivos: `libros/app.js`, `libros/index.html`, `libros/styles.css`, nuevo `libros/sql/v13_prestamos_y_recomendaciones.sql`.
+- **Despensa 1.3**: círculo con la inicial (M, P, A) de quien apuntó cada producto en la lista principal, «Pendientes no urgentes» y la compra. Si el dispositivo no sabe quién es, lo pregunta antes de añadir. Al mover entre listas se conserva quién lo apuntó.
+  Archivos: `compra/js/ui/who.js` (nuevo), `compra/js/ui/cards.js`, `compra/js/pages/prepare.js`, `compra/js/pages/shop.js`, `compra/js/data/store.js`, `compra/js/core/text.js`, `compra/styles.css`, migración `20261105100000_compra_quien_apunta.sql` (+ `INSTALAR_TODO.sql`), pruebas.
+- **Hogar**: «Buzón de sugerencias» en el menú inicial (`buzon.js`, una línea en `index.html`, `sql/buzon_sugerencias.sql`). La contraseña se comprueba en Supabase; en la web no está.
+- `service-worker.js`: caché `hogar-v13-20261105`.
+
 ## Archivos existentes modificados (2)
 
 Las copias de los originales están en `compra/copias-de-seguridad/`. Para deshacer la integración basta con volver a poner esos dos archivos (la carpeta `compra/` no afecta a nada más).

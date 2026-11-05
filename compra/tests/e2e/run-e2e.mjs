@@ -168,6 +168,7 @@ try {
     await card.locator('[data-inc]').click();
     await page.locator(`#page-lista .pcard[data-pid="${oilId}"] [data-inc]`).click();
     await page.waitForSelector(`#page-lista .li-row[data-pid="${oilId}"] output:has-text("2")`);
+    assert.equal(await page.textContent(`#page-lista .li-row[data-pid="${oilId}"] .who-badge`), 'M', 'inicial de quien lo apuntó (Mamá)');
     assert.match(await page.textContent('#page-lista .b-meta'), /1 producto · 2 uds/);
     const drafts = await q(`select count(*)::int n from compra.shopping_list_items i join compra.shopping_lists l on l.id = i.list_id where l.status = 'draft'`);
     assert.equal(drafts[0].n, 0, 'no se escribe en Supabase con cada pulsación');
@@ -274,6 +275,7 @@ try {
     assert.equal((await q(`select count(*)::int n from compra.shopping_list_items i join compra.shopping_lists l on l.id = i.list_id where l.status = 'draft' and i.product_id = $1`, [pid]))[0].n, 0);
     await page.keyboard.press('Escape');
     await page.waitForSelector('#page-lista .backlog-card .backlog-row');
+    assert.equal(await page.textContent(`#page-lista .backlog-card .backlog-row[data-pid="${pid}"] .who-badge`), 'M', 'en «No urgentes» también se ve quién lo apuntó');
   });
 
   await step('Zona: todos los productos sin «Ver más» y cabecera fija al bajar', async () => {
@@ -406,6 +408,7 @@ try {
     assert.deepEqual(names, ['Papá', 'Mamá', 'Adrián']);
     await mp.click('.shopper-pick [data-shopper="papa"]');
     await mp.waitForSelector('#page-compra .collect-grid .ccard');
+    assert.ok(await mp.locator('#page-compra .collect-grid .ccard .c-who').count() > 0, 'inicial en la compra');
     await mp.waitForFunction(() => {
       const g = document.querySelector('#page-compra .collect-grid');
       const c = g?.querySelector('.ccard');
@@ -558,6 +561,29 @@ try {
       await shot(p, `16-lista-zona-${tag}`);
       await c.close();
     }
+  });
+
+  await step('Quién apunta: si el dispositivo no lo sabe, se pregunta antes de añadir', async () => {
+    const c = await newContext({ width: 1280, height: 900 });
+    const p = await c.newPage();
+    watch(p, 'sin persona');
+    await p.addInitScript((k) => { localStorage.setItem('despensaClaveFamiliar', k); }, stack.familyKey);
+    await p.goto(`${stack.webBase}/compra/#lista`);
+    const who = p.locator('#dialogModal.open >> text=¿Quién usa este dispositivo?');
+    await p.waitForSelector('#page-lista .store-map', { timeout: 30000 });
+    if (await who.count()) await p.click('#dlgActions button:has-text("Ahora no")');
+    await p.click('#page-lista .zone-shape.main[aria-label^="Zona 3:"]');
+    await p.waitForSelector('#page-lista .zone-nav');
+    const card = p.locator('#page-lista .pcard:not(.in)').first();
+    const id = await card.getAttribute('data-pid');
+    await card.locator('[data-inc]').click();
+    await p.waitForSelector('#dialogModal.open >> text=Antes de apuntarlo en la lista');
+    assert.equal(await p.locator(`#page-lista .li-row[data-pid="${id}"]`).count(), 0, 'no se añade antes de responder');
+    await p.click('#dlgActions button:has-text("Adrián")');
+    await p.waitForSelector(`#page-lista .li-row[data-pid="${id}"] .who-badge`);
+    assert.equal(await p.textContent(`#page-lista .li-row[data-pid="${id}"] .who-badge`), 'A');
+    await shot(p, '12-inicial-quien-apunta');
+    await c.close();
   });
 
   await step('La discoteca y la biblioteca siguen abriendo', async () => {

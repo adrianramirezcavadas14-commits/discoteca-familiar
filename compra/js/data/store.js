@@ -292,7 +292,7 @@ function mergeDraftFromServer(list, serverItems) {
     return;
   }
   const items = new Map();
-  for (const it of serverItems) items.set(it.product_id, { quantity: it.quantity, notes: it.notes, unit_price_snapshot: it.unit_price_snapshot, id: it.id, unavailable_ack_at: it.unavailable_ack_at });
+  for (const it of serverItems) items.set(it.product_id, { quantity: it.quantity, notes: it.notes, unit_price_snapshot: it.unit_price_snapshot, id: it.id, unavailable_ack_at: it.unavailable_ack_at, added_by: it.added_by || null });
   for (const pid of pendingIds) {
     const local = S.draft.items.get(pid);
     if (local && local.quantity > 0) items.set(pid, local); else items.delete(pid);
@@ -316,7 +316,11 @@ export function setSyncState(patch) { S.sync = { ...S.sync, ...patch }; saveMeta
 /* =================================================================
    BORRADOR DE LA LISTA
    ================================================================= */
+/** Producto nuevo en la lista: se recuerda quién usa el dispositivo (si se sabe). */
+const newItemBy = () => (S.me ? { by: S.me } : {});
 export const draftQty = (pid) => S.draft.items.get(pid)?.quantity || 0;
+/** Quién apuntó el producto: el perfil guardado en el servidor o, si aún no se ha enviado, el código de este dispositivo. */
+export const draftBy = (pid) => { const it = S.draft.items.get(pid); return it?.added_by || it?.by || null; };
 
 /* Copia de seguridad SÍNCRONA (localStorage) de lo no enviado: sobrevive a cerrar la pestaña
    aunque IndexedDB no haya terminado de escribir. Las cantidades son absolutas: reaplicarlas es seguro. */
@@ -336,7 +340,7 @@ function restoreDraftBackup() {
   try { b = JSON.parse(ls.get(BACKUP_KEY) || 'null'); } catch { b = null; }
   if (!b?.changes) return;
   for (const [pid, q] of Object.entries(b.changes)) {
-    if (q > 0) S.draft.items.set(pid, { ...(S.draft.items.get(pid) || {}), quantity: q }); else S.draft.items.delete(pid);
+    if (q > 0) S.draft.items.set(pid, { ...(S.draft.items.get(pid) || newItemBy()), quantity: q }); else S.draft.items.delete(pid);
     S.draft.dirty.add(pid);
   }
 }
@@ -346,7 +350,7 @@ export function setDraftQty(pid, qty) {
   const cur = S.draft.items.get(pid);
   if ((cur?.quantity || 0) === q) return;
   if (q === 0) S.draft.items.delete(pid);
-  else S.draft.items.set(pid, { ...(cur || {}), quantity: q });
+  else S.draft.items.set(pid, { ...(cur || newItemBy()), quantity: q });   // by: quién lo apunta (hasta que lo confirme el servidor)
   S.draft.dirty.add(pid);
   backupDraft();
   saveDraftLocal();

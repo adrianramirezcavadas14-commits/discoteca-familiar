@@ -65,6 +65,11 @@ export function uuid() {
   const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
+/** Inicial de un nombre para el círculo de «quién lo apuntó» («Mamá» → «M», «Álvaro» → «A»). */
+export function initialOf(name) {
+  const m = String(name ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/[\p{L}\p{N}]/u);
+  return m ? m[0].toUpperCase() : '';
+}
 export const isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v));
 
 /**

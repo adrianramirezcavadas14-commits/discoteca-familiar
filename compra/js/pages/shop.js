@@ -4,7 +4,7 @@
 import { S, zonesByRoute, zoneById, productById, profileName, zoneIdOf, startShopping, setResult, flushResults, finishShopping, cancelShopping, reopenPending, loadCachedThumbs, queueInfo } from '../data/store.js';
 import { explainError } from '../data/api.js';
 import { renderMap } from '../ui/map.js';
-import { openProductDetail, openPanel, closePanel } from '../ui/cards.js';
+import { openProductDetail, openPanel, closePanel, whoBadge } from '../ui/cards.js';
 import { withLoader, confirmDialog, dialog, toast, productImg } from '../ui/dom.js';
 import { go, broadcast } from '../ui/nav.js';
 import { circularNeighbors, arrowLabel, nextZoneWithPending, firstZoneWithPending } from '../core/zones.js';
@@ -212,18 +212,19 @@ function zoneSection(el, items, pend, done) {
         <span><strong>${nav.next ? `${nav.next.route_order} · ${esc(nav.next.name)}` : ''}</strong><small>${esc(arrowLabel(nav.next))}${nav.next && pend.get(nav.next.id) ? ` · ${pend.get(nav.next.id)} pend.` : ''}</small></span><b aria-hidden="true">›</b></button>
     </nav>
     <div class="row" style="margin-bottom:10px" aria-label="Zonas de la compra">${chips}</div>
-    <div class="collect-grid">${results.map((r) => collectCard(r)).join('')}</div>
+    <div class="collect-grid">${(() => { const m = itemById(); return results.map((r) => collectCard(r, m)).join(''); })()}</div>
     <div class="row end" style="margin-top:18px"><button type="button" class="btn small ghost" data-cancel>Cancelar la compra</button>${done.size === withItems.size ? '' : '<button type="button" class="btn small ghost" data-finish-force>Terminar con pendientes</button>'}</div>`;
 }
 
 const STATE_TEXT = { pending: '⏳ Pendiente', collected: '✓ Recogido', partial: '◐ Parcial', out_of_stock: '✗ Sin existencias' };
 
-function collectCard(r) {
+function collectCard(r, byItem = itemById()) {
   const p = productById(r.product_id) || { id: r.product_id, name: 'Producto' };
+  const by = byItem.get(r.list_item_id)?.added_by;
   const multi = r.requested_qty > 1;
   const resolved = r.status !== 'pending';
   return `<article class="ccard ${r.status}${resolved ? ' resolved' : ''}" data-item="${esc(r.list_item_id)}">
-    <button type="button" class="c-photo" data-enlarge="${esc(r.list_item_id)}" aria-label="Ampliar ${esc(p.name)}">${productImg(p, { eager: true })}<span class="c-qty" aria-label="${r.requested_qty} unidades">×${r.requested_qty}</span></button>
+    <button type="button" class="c-photo" data-enlarge="${esc(r.list_item_id)}" aria-label="Ampliar ${esc(p.name)}">${productImg(p, { eager: true })}<span class="c-qty" aria-label="${r.requested_qty} unidades">×${r.requested_qty}</span>${whoBadge(by, 'c-who')}</button>
     <span class="sr-only">${esc(p.name)}</span>
     <div class="c-state" role="status">${STATE_TEXT[r.status]}${r.status === 'partial' ? ` (${r.collected_qty}/${r.requested_qty})` : ''}</div>
     ${multi && r.status !== 'out_of_stock' ? `<div class="c-units"><span>Recogidas:</span><span class="stepper"><button type="button" data-units="-1" aria-label="Una menos de ${esc(p.name)}">−</button><output>${r.status === 'pending' ? r.requested_qty : r.collected_qty}</output><button type="button" data-units="1" aria-label="Una más de ${esc(p.name)}" ${r.status === 'collected' ? 'disabled' : ''}>+</button></span></div>` : ''}

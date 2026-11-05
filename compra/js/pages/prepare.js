@@ -1,10 +1,11 @@
 /* =====================================================================
    «Apunta lo que falta» · Preparar la lista de la compra
    ===================================================================== */
-import { S, zonesByRoute, zoneById, productsInZone, unclassifiedProducts, draftQty, setDraftQty, flushDraft, hasUnsavedDraft, productById, zoneIdOf, closeDraft, queueInfo } from '../data/store.js';
+import { S, zonesByRoute, zoneById, productsInZone, unclassifiedProducts, draftQty, draftBy, setDraftQty, flushDraft, hasUnsavedDraft, productById, zoneIdOf, closeDraft, queueInfo } from '../data/store.js';
 import { explainError } from '../data/api.js';
 import { renderMap } from '../ui/map.js';
-import { prepCard, listRow, openProductDetail, openPanel, closePanel } from '../ui/cards.js';
+import { prepCard, listRow, whoBadge, openProductDetail, openPanel, closePanel } from '../ui/cards.js';
+import { ensureWho } from '../ui/who.js';
 import { $, toast, withLoader, confirmDialog, dialog, productImg } from '../ui/dom.js';
 import { mountFinder, zoneLabel } from '../ui/finder.js';
 import { setBacklogQty, backlogQty, moveBetweenLists, setReviewFlag, isFlagged } from '../data/plans.js';
@@ -17,6 +18,13 @@ import { FREQUENT_LIMIT } from '../config.js';
 
 const NONE = 'sin-zona';
 const ui = { zoneId: null, q: '', sub: '', sort: 'alpha', promo: false };
+
+/** Suma unidades a la lista. Si el producto es nuevo en la lista y no se sabe quién usa el dispositivo, se pregunta antes. */
+async function addToList(pid, n = 1) {
+  if (n > 0 && !draftQty(pid) && !(await ensureWho('apuntarlo en la lista'))) return false;
+  setDraftQty(pid, draftQty(pid) + n);
+  return true;
+}
 
 const draftItems = () => [...S.draft.items].map(([product_id, it]) => ({ product_id, quantity: it.quantity }));
 
@@ -73,7 +81,7 @@ function paintFinder(el) {
     mode: 'lista', title: 'Buscar un producto en todo el súper',
     placeholder: '🔎 Busca un producto aunque esté en otra zona…',
     onOpen: (pid) => showDetail(pid),
-    onMain: (pid) => { setDraftQty(pid, draftQty(pid) + 1); toast(`Añadido a la lista principal (${draftQty(pid)}).`); },
+    onMain: async (pid) => { if (await addToList(pid)) toast(`Añadido a la lista principal (${draftQty(pid)}).`); },
     onLater: (pid) => changeBacklog(pid, backlogQty(pid) + 1, 'Añadido a «Pendientes no urgentes»'),
     onFlag: (pid) => toggleFlag(pid)
   });
@@ -156,7 +164,7 @@ function paintZone(body, navHost) {
   body.innerHTML = `
     <section class="block" aria-labelledby="b1">
       <div class="block-head"><h3 id="b1">1. Ya está en la lista</h3><small>${blocks.inList.length ? `${plural(blocks.inList.length, 'producto', 'productos')} · ${fmtEur(listedTotal.total)}` : ''}</small></div>
-      ${blocks.inList.length ? `<div class="in-list">${blocks.inList.map((p) => listRow(p, inList.get(p.id))).join('')}</div>` : '<div class="empty-note">Todavía no hay nada de esta zona en la lista.</div>'}
+      ${blocks.inList.length ? `<div class="in-list">${blocks.inList.map((p) => listRow(p, inList.get(p.id), draftBy(p.id))).join('')}</div>` : '<div class="empty-note">Todavía no hay nada de esta zona en la lista.</div>'}
     </section>
 
     <section class="block" aria-labelledby="b2">
@@ -236,7 +244,7 @@ function bind(el) {
     if (mv) { await moveItem(mv.dataset.pid, mv.dataset.moveTo); return; }
     if (t.closest('[data-backlog]')) { showBacklog(); return; }
     const inc = t.closest('[data-inc]');
-    if (inc) { setDraftQty(inc.dataset.inc, draftQty(inc.dataset.inc) + 1); return; }
+    if (inc) { await addToList(inc.dataset.inc); return; }
     const dec = t.closest('[data-dec]');
     if (dec) { setDraftQty(dec.dataset.dec, draftQty(dec.dataset.dec) - 1); return; }
     const det = t.closest('[data-detail]');
@@ -294,8 +302,8 @@ function showDetail(pid) {
     if (e.target.closest('[data-dflag]')) { await toggleFlag(pid); showDetail(pid); return; }
     const b = e.target.closest('[data-dq]');
     if (!b) return;
-    setDraftQty(pid, draftQty(pid) + Number(b.dataset.dq));
-    showDetail(pid);
+    const n = Number(b.dataset.dq);
+    if (n > 0 ? await addToList(pid, n) : (setDraftQty(pid, draftQty(pid) + n), true)) showDetail(pid);
   };
 }
 
@@ -312,7 +320,7 @@ function showWholeList() {
   const body = openPanel('La lista de esta semana', `${listTabs('main')}${zones.length ? `
     <p class="muted">${plural(t.products, 'producto', 'productos')} · ${plural(t.units, 'unidad', 'unidades')} · <b>${fmtEur(t.total)}</b> estimados</p>
     ${zones.map((z) => `<h3 style="margin:14px 0 6px;display:flex;gap:8px;align-items:center"><span class="pill" style="background:${esc(z.color)};color:#fff">${esc(z.route_order)}</span>${esc(z.name)}</h3>
-      <div class="in-list">${byZone.get(z.id).filter((x) => x.p).map((x) => `<div class="li-wrap">${listRow(x.p, x.qty)}<button type="button" class="move-btn" data-move-to="backlog" data-pid="${esc(x.p.id)}" aria-label="Mover ${esc(x.p.name)} a Pendientes no urgentes">🕰️ Mover a «No urgentes»</button></div>`).join('')}</div>`).join('')}` : '<div class="empty-note">La lista está vacía.</div>'}`);
+      <div class="in-list">${byZone.get(z.id).filter((x) => x.p).map((x) => `<div class="li-wrap">${listRow(x.p, x.qty, draftBy(x.p.id))}<button type="button" class="move-btn" data-move-to="backlog" data-pid="${esc(x.p.id)}" aria-label="Mover ${esc(x.p.name)} a Pendientes no urgentes">🕰️ Mover a «No urgentes»</button></div>`).join('')}</div>`).join('')}` : '<div class="empty-note">La lista está vacía.</div>'}`);
   body.onclick = async (e) => {
     if (e.target.closest('[data-tab-backlog]')) { showBacklog(); return; }
     const mv = e.target.closest('[data-move-to]');
@@ -341,7 +349,7 @@ function backlogItems() {
 function backlogRow(p, qty) {
   return `<div class="li-wrap backlog-row" data-pid="${esc(p.id)}">
     <div class="li-row">
-      <button type="button" class="li-img" data-detail="${esc(p.id)}" aria-label="Ver ficha de ${esc(p.name)}">${productImg(p)}</button>
+      <button type="button" class="li-img" data-detail="${esc(p.id)}" aria-label="Ver ficha de ${esc(p.name)}">${productImg(p)}${whoBadge(S.backlog.get(p.id)?.added_by)}</button>
       <button type="button" class="li-name" data-detail="${esc(p.id)}"><b>${esc(p.name)}</b><small>${esc(p.format_label || '')} · ${fmtEur(p.price)}/ud.</small></button>
       <span class="li-sub">${zoneLabel(p.id)}</span>
       <span class="stepper" role="group" aria-label="Cantidad de ${esc(p.name)}">
@@ -381,6 +389,7 @@ function showBacklog() {
 }
 
 async function changeBacklog(pid, qty, okMessage = '') {
+  if (qty > 0 && !backlogQty(pid) && !(await ensureWho('apuntarlo en «Pendientes no urgentes»'))) return false;
   try {
     await setBacklogQty(pid, qty);
     broadcast('backlog');

@@ -1,10 +1,11 @@
 /* =====================================================================
    Tarjetas de producto y ficha ampliada
    ===================================================================== */
-import { esc, fmtEur, fmtDateTime, plural } from '../core/text.js';
+import { esc, fmtEur, fmtDateTime, plural, initialOf } from '../core/text.js';
 import { priceState, unitPriceText, isNewProduct, itemSubtotal } from '../core/pricing.js';
 import { productImg, $, openModal, closeModal } from './dom.js';
-import { S, zoneById, zoneIdOf, profileName } from '../data/store.js';
+import { S, zoneById, zoneIdOf, profileName, profileById } from '../data/store.js';
+import { SHOPPERS } from '../config.js';
 
 const AVAIL = {
   available: null,
@@ -52,11 +53,27 @@ export function prepCard(p, qty, freq = 0, { flagged = false, later = 0 } = {}) 
   </article>`;
 }
 
-/** Fila de «Ya está en la lista»: sumar, restar, eliminar, subtotal y detalle. */
-export function listRow(p, qty) {
+/** Persona que apuntó un producto. by = id del perfil (servidor) o código del dispositivo (papa, mama, adrian). */
+export function whoOf(by) {
+  if (!by) return null;
+  const prof = profileById(by);
+  const code = prof?.code || by;
+  const s = SHOPPERS.find((x) => x.code === code);
+  if (s) return { name: s.name, color: s.color };
+  return prof ? { name: prof.display_name || '?', color: '#8a8f9c' } : null;
+}
+/** Círculo con la inicial de quien apuntó el producto (vacío si no se sabe). */
+export function whoBadge(by, cls = '') {
+  const w = whoOf(by);
+  if (!w) return '';
+  return `<span class="who-badge ${cls}" style="--wc:${esc(w.color)}" title="Lo apuntó ${esc(w.name)}" aria-label="Lo apuntó ${esc(w.name)}">${esc(initialOf(w.name))}</span>`;
+}
+
+/** Fila de «Ya está en la lista»: sumar, restar, eliminar, subtotal y detalle. by = quién lo apuntó. */
+export function listRow(p, qty, by = null) {
   const warn = p && p.availability !== 'available';
   return `<div class="li-row${warn ? ' warn' : ''}" data-pid="${esc(p.id)}">
-    <button type="button" class="li-img" data-detail="${esc(p.id)}" aria-label="Ver ficha de ${esc(p.name)}">${productImg(p)}</button>
+    <button type="button" class="li-img" data-detail="${esc(p.id)}" aria-label="Ver ficha de ${esc(p.name)}">${productImg(p)}${whoBadge(by)}</button>
     <button type="button" class="li-name" data-detail="${esc(p.id)}"><b>${esc(p.name)}</b><small>${esc(p.format_label || '')} · ${fmtEur(p.price)}/ud.${warn ? ` · ${esc(AVAIL[p.availability]?.text || '')}` : ''}</small></button>
     <span class="li-sub" aria-label="Subtotal">${fmtEur(itemSubtotal(qty, p.price))}</span>
     ${stepperHtml(p.id, qty, { label: p.name })}

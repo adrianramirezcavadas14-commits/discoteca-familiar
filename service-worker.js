@@ -2,7 +2,7 @@
    - Solo guarda en caché archivos propios de Hogar (mismo origen) con respuesta correcta.
    - No toca las peticiones a Supabase (ni a sus funciones), Open Library, Google Books, imágenes de Mercadona ni CDN: van siempre a la red.
    - Al cambiar CACHE se eliminan solo las cachés antiguas de Hogar. */
-const CACHE = 'hogar-v10d-20261101';
+const CACHE = 'hogar-v13-20261105';
 const NETWORK_WAIT = 3500; // ms antes de usar la copia guardada si la red va muy lenta
 const CORE = [
   './',
@@ -13,6 +13,7 @@ const CORE = [
   './supabase-config.js',
   './camera-controls.js',
   './scanner-core.js',
+  './buzon.js',
   './libros/',
   './libros/index.html',
   './libros/styles.css',
@@ -46,6 +47,7 @@ const CORE = [
   './compra/js/ui/sync.js',
   './compra/js/ui/review.js',
   './compra/js/ui/finder.js',
+  './compra/js/ui/who.js',
   './compra/js/pages/home.js',
   './compra/js/pages/map-page.js',
   './compra/js/pages/prepare.js',

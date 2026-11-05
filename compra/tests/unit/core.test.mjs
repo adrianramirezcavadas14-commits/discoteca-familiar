@@ -219,3 +219,14 @@ test('formatos', () => {
   assert.equal(fmtDuration(1830), '30 min 30 s');
   assert.equal(norm('  Cuidado FACIAL  y corporal '), 'cuidado facial y corporal');
 });
+
+test('initialOf: inicial para el círculo de quién apuntó el producto', async () => {
+  const { initialOf } = await import('../../js/core/text.js');
+  assert.equal(initialOf('Mamá'), 'M');
+  assert.equal(initialOf('Papá'), 'P');
+  assert.equal(initialOf('Adrián'), 'A');
+  assert.equal(initialOf('álvaro'), 'A');
+  assert.equal(initialOf('  ¡Ñu!'), 'N');
+  assert.equal(initialOf(''), '');
+  assert.equal(initialOf(null), '');
+});
