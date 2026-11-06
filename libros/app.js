@@ -53,8 +53,11 @@
     pending: 'reading_pending',
     loans: 'book_loans',
     recs: 'book_recommendations',
-    people: 'book_people'
+    people: 'book_people',
+    requests: 'book_loan_requests'
   };
+  /** SQL de la versión 14 (solicitudes de préstamo). */
+  const REQ_SQL = 'libros/sql/v14_solicitudes_de_prestamo.sql';
   /** SQL de la versión 13 (préstamos, recomendaciones y nombres guardados). */
   const NEW_SQL = 'libros/sql/v13_prestamos_y_recomendaciones.sql';
 
@@ -357,7 +360,7 @@
     ready: false,
     idIsUuid: true,
     missing: new Set(),
-    books: [], ratings: [], wishes: [], journeys: [], sessions: [], pending: [], loans: [], recs: [], people: [],
+    books: [], ratings: [], wishes: [], journeys: [], sessions: [], pending: [], loans: [], recs: [], people: [], requests: [],
     bookMap: new Map(),
     page: 'search',
     search: { q: '', owner: null, format: null, location: null, page: 1, filtered: [], highlight: null, sort: readBookSort() },
@@ -453,6 +456,7 @@
     S.pending = S.pending.filter((r) => idOf(r.book_id) !== k);
     S.recs = S.recs.filter((r) => idOf(r.book_id) !== k);
     S.loans = S.loans.filter((r) => idOf(r.book_id) !== k);
+    S.requests = S.requests.filter((r) => idOf(r.book_id) !== k);
     S.sessions = S.sessions.filter((r) => idOf(r.book_id) !== k);
     S.journeys = S.journeys.filter((r) => idOf(r.book_id) !== k);
     rebuildIndex();
@@ -460,7 +464,7 @@
 
   /* ---------- Copia local de resiliencia ---------- */
   function writeCache() {
-    const data = { savedAt: new Date().toISOString(), books: S.books, ratings: S.ratings, wishes: S.wishes, journeys: S.journeys, sessions: S.sessions, pending: S.pending, loans: S.loans, recs: S.recs, people: S.people };
+    const data = { savedAt: new Date().toISOString(), books: S.books, ratings: S.ratings, wishes: S.wishes, journeys: S.journeys, sessions: S.sessions, pending: S.pending, loans: S.loans, recs: S.recs, people: S.people, requests: S.requests };
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify(data));
     } catch {
@@ -483,6 +487,7 @@
       S.sessions = c.sessions || [];
       S.pending = c.pending || [];
       S.loans = c.loans || [];
+      S.requests = c.requests || [];
       S.recs = c.recs || [];
       S.people = c.people || [];
       sortBooks();
@@ -1136,6 +1141,8 @@
     const loan = loanOf(b.id);
     if (recsN) lines.push(`<li>${plural(recsN, 'recomendación', 'recomendaciones')}: <b>se eliminarán</b>.</li>`);
     if (loan) lines.push(`<li>Está prestado a ${esc(loan.borrower)}: <b>el préstamo se eliminará</b>.</li>`);
+    const reqN = S.requests.filter((r) => idOf(r.book_id) === idOf(b.id)).length;
+    if (reqN) lines.push(`<li>${plural(reqN, 'solicitud de préstamo', 'solicitudes de préstamo')}: <b>se eliminarán</b>.</li>`);
     const ok = await confirmDialog('¿Eliminar este libro?', `<p>Vas a eliminar «${esc(b.title)}»${b.owners.length ? ` de ${esc(b.owners.join(' y '))}` : ''}.</p><ul>${lines.join('')}</ul>`, 'Eliminar', 'danger', true);
     if (!ok) return;
     if (rel.sessions) {
@@ -3378,8 +3385,8 @@
   function openPick(person, mode = 'pend') {
     S.pick.person = person;
     S.pick.mode = mode;
-    $('#pickTitle').textContent = mode === 'loan' ? '¿Qué libro se va de viaje?' : mode === 'rec' ? `Recomendar un libro a ${person}` : `Próxima parada para ${person}`;
-    $('#pickHint').textContent = mode === 'loan' ? 'Elige el libro de casa que vas a prestar.' : 'Busca por título o autor dentro de la biblioteca familiar.';
+    $('#pickTitle').textContent = mode === 'loan' ? '¿Qué libro se va de viaje?' : mode === 'request' ? `¿Qué libro le pides a ${S.pick.owner}?` : mode === 'rec' ? `Recomendar un libro a ${person}` : `Próxima parada para ${person}`;
+    $('#pickHint').textContent = mode === 'loan' ? 'Elige el libro de casa que vas a prestar.' : mode === 'request' ? `Solo salen los libros de casa que son de ${S.pick.owner}.` : 'Busca por título o autor dentro de la biblioteca familiar.';
     $('#pickQuery').value = '';
     renderPick();
     openModal($('#pickModal'));
@@ -3388,15 +3395,17 @@
   function renderPick() {
     const qv = $('#pickQuery').value.trim();
     const mode = S.pick.mode || 'pend';
-    const pool = qv ? libraryMatches(qv, 40) : homeBooks().sort((a, b) => collator.compare(a.title, b.title)).slice(0, 30);
-    const list = mode === 'loan' ? pool.filter(inHome) : pool;
+    const ownerOk = (b) => mode !== 'request' || (b.owners || []).includes(S.pick.owner);
+    const pool = qv ? libraryMatches(qv, mode === 'request' ? 400 : 40).filter(ownerOk).slice(0, 40) : homeBooks().filter(ownerOk).sort((a, b) => collator.compare(a.title, b.title)).slice(0, mode === 'request' ? 60 : 30);
+    const list = mode === 'loan' || mode === 'request' ? pool.filter(inHome) : pool;
     $('#pickResults').innerHTML = list.length ? list.map((b) => {
       let tag = '';
       if (mode === 'pend' && S.pending.some((p) => idOf(p.book_id) === idOf(b.id) && p.person === S.pick.person)) tag = 'Ya está en su lista';
       if (mode === 'rec' && S.recs.some((r) => idOf(r.book_id) === idOf(b.id) && r.person === S.pick.person)) tag = 'Ya se lo han recomendado';
-      if (mode === 'loan') { const l = loanOf(b.id); if (l) tag = `Prestado a ${l.borrower}`; }
+      if (mode === 'loan' || mode === 'request') { const l = loanOf(b.id); if (l) tag = `Prestado a ${l.borrower}`; }
+      if (mode === 'request' && S.requests.some((r) => idOf(r.book_id) === idOf(b.id) && r.requester === S.pick.person)) tag = 'Ya lo ha pedido';
       return libraryItem(b, 'data-pick-book', tag ? `<span class="ri-tags"><span class="ri-tag exact">${esc(tag)}</span></span>` : '');
-    }).join('') : `<div class="empty-note">${S.books.length ? 'No hay ningún libro de casa con ese título o autor.' : 'La biblioteca todavía está vacía.'}</div>`;
+    }).join('') : `<div class="empty-note">${mode === 'request' ? `No hay ningún libro de ${esc(S.pick.owner)}${qv ? ' con ese título o autor' : ''}.` : S.books.length ? 'No hay ningún libro de casa con ese título o autor.' : 'La biblioteca todavía está vacía.'}</div>`;
   }
   async function addPending(bookId, person) {
     if (S.pending.some((p) => idOf(p.book_id) === idOf(bookId) && p.person === person)) { toast(`Ya estaba en las aventuras pendientes de ${person}`); return; }
@@ -3595,6 +3604,7 @@
       const mode = S.pick.mode || 'pend';
       if (mode === 'rec') addRecFromHome(b.dataset.pickBook, S.pick.person);
       else if (mode === 'loan') lendBook(b.dataset.pickBook);
+      else if (mode === 'request') saveRequest(b.dataset.pickBook);
       else addPending(b.dataset.pickBook, S.pick.person);
     });
   }
@@ -3692,6 +3702,7 @@
   const whoChip = (name, cls = '') => `<span class="loan-who ${cls}" style="--c:${esc(nameColor(name))}" title="${esc(name)}"><i></i><span>${esc(name)}</span></span>`;
 
   function renderLoans() {
+    renderRequests();
     const grid = $('#loansGrid');
     if (S.missing.has(T.loans)) { grid.innerHTML = missingNotice(T.loans, NEW_SQL); return; }
     const list = S.loans.filter((l) => bookById(l.book_id)).sort((a, b) => String(a.lent_on || a.created_at).localeCompare(String(b.lent_on || b.created_at)));
@@ -3714,31 +3725,119 @@
     }).join('');
   }
 
-  async function lendBook(bookId) {
+  async function lendBook(bookId, given = null) {
     const b = bookById(bookId);
-    if (!b) return;
+    if (!b) return false;
     const prev = loanOf(b.id);
-    if (prev) { toast(`«${b.title}» ya está prestado a ${prev.borrower}`); return; }
+    if (prev) { toast(`«${b.title}» ya está prestado a ${prev.borrower}`); return false; }
     closeModal($('#pickModal'));
     const owners = b.owners || [];
-    const borrower = await askName({
+    const borrower = given || await askName({
       title: '¿A quién se lo prestas?',
       hint: owners.length ? `Es de ${owners.join(' y ')}. Elige a alguien de la familia o escribe otro nombre.` : 'Elige a alguien de la familia o escribe otro nombre.',
       book: b.title,
       exclude: owners,
       excludeText: 'El libro ya es suyo: elige a otra persona.'
     });
-    if (!borrower) return;
+    if (!borrower) return false;
     try {
       const row = await db.insert(T.loans, { id: uuid(), book_id: b.id, lender: owners.join(' y ') || null, borrower, lent_on: todayISO() });
       upsertLocal(S.loans, row);
       renderLoans();
       saveCache();
       toast(`🤝 «${b.title}» se va de viaje con ${borrower}`);
+      return true;
     } catch (e) {
       if (String(e?.code) === '23505') toast('Ese libro ya estaba prestado.');
       else toast(explainError(e), 4000);
+      return false;
     }
+  }
+
+  /* ---------- Solicitudes de préstamo ---------- */
+  function renderRequests() {
+    const box = $('#loanRequests');
+    if (!box) return;
+    if (S.missing.has(T.requests)) { box.innerHTML = missingNotice(T.requests, REQ_SQL); return; }
+    const list = S.requests.filter((r) => bookById(r.book_id)).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    $('#loanReqCount').textContent = list.length ? plural(list.length, 'solicitud', 'solicitudes') : '';
+    if (!list.length) { box.innerHTML = '<div class="empty-note">Nadie ha pedido ningún libro. Pulsa «Pedir un libro» para pedírselo a alguien de casa.</div>'; return; }
+    box.innerHTML = list.map((r) => {
+      const b = bookById(r.book_id);
+      const lent = loanOf(b.id);
+      return `<article class="loan-card req-card">
+        <button type="button" class="loan-book" data-loan-open="${esc(b.id)}">${thumbHtml(b.cover_url, b.title)}<span class="loan-title"><b>${esc(b.title)}</b><span>${esc(b.authors.join(', ') || 'Autor desconocido')}</span></span></button>
+        <div class="loan-route req-route" aria-label="${esc(`${r.requester} se lo pide a ${r.owner}`)}">
+          <div class="loan-side">${whoChip(r.requester, 'to')}</div>
+          <span class="loan-arrow ask" aria-hidden="true"><i></i>🙋</span>
+          <div class="loan-side">${whoChip(r.owner, 'from')}</div>
+        </div>
+        <small class="loan-since">🙋 ${esc(r.requester)} se lo pide a ${esc(r.owner)} · ${esc(fmtDate(r.created_at))}${lent ? ` · <b>ahora lo tiene ${esc(lent.borrower)}</b>` : ''}</small>
+        <div class="req-actions">
+          <button type="button" class="loan-back" data-req-lend="${esc(r.id)}" ${lent ? 'disabled' : ''}>🤝 Prestárselo</button>
+          <button type="button" class="req-no" data-req-rm="${esc(r.id)}">✖ Quitar</button>
+        </div>
+      </article>`;
+    }).join('');
+  }
+
+  /** Pedir un libro: quién lo pide → a quién (de la familia) → uno de sus libros. */
+  async function newRequest() {
+    if (S.missing.has(T.requests)) { toast('Falta preparar las solicitudes en Supabase.', 4000); return; }
+    const requester = await askName({ title: '¿Quién pide el libro?', hint: 'Elige a alguien de la familia o escribe otro nombre.' });
+    if (!requester) return;
+    const options = FAMILY.filter((p) => p !== requester && homeBooks().some((b) => (b.owners || []).includes(p)));
+    if (!options.length) { toast('No hay libros de otras personas para pedir.'); return; }
+    const res = await dialog({
+      title: '¿A quién se lo pides?',
+      message: `${requester} quiere un libro de…`,
+      buttons: [...options.map((p) => ({ label: p, value: p, kind: 'primary' })), { label: 'Cancelar', value: null }]
+    });
+    if (!res.value) return;
+    S.pick.owner = res.value;
+    openPick(requester, 'request');
+  }
+  async function saveRequest(bookId) {
+    const b = bookById(bookId);
+    const requester = S.pick.person;
+    const owner = S.pick.owner;
+    if (!b || !requester || !owner) return;
+    if (S.requests.some((r) => idOf(r.book_id) === idOf(b.id) && r.requester === requester)) { toast(`${requester} ya había pedido «${b.title}»`); return; }
+    try {
+      const row = await db.insert(T.requests, { id: uuid(), book_id: b.id, requester, owner });
+      upsertLocal(S.requests, row);
+      closeModal($('#pickModal'));
+      renderRequests();
+      saveCache();
+      const lent = loanOf(b.id);
+      toast(lent ? `🙋 Pedido. Ojo: ahora lo tiene ${lent.borrower}.` : `🙋 ${requester} le pide «${b.title}» a ${owner}`);
+    } catch (e) {
+      if (String(e?.code) === '23505') toast('Esa solicitud ya estaba apuntada.');
+      else toast(explainError(e), 4000);
+    }
+  }
+  async function removeRequest(id, ask = true) {
+    const r = S.requests.find((x) => idOf(x.id) === idOf(id));
+    if (!r) return false;
+    const b = bookById(r.book_id);
+    if (ask && !(await confirmDialog('Quitar la solicitud', `¿Quitar la solicitud de ${r.requester} para «${b?.title || 'el libro'}»?`, 'Quitar', 'danger'))) return false;
+    try {
+      await db.remove(T.requests, r.id);
+      removeLocal(S.requests, r.id);
+      renderRequests();
+      saveCache();
+      if (ask) toast('Solicitud quitada');
+      return true;
+    } catch (e) { toast(explainError(e), 4000); return false; }
+  }
+  /** La solicitud se convierte en préstamo; solo se quita cuando el préstamo está guardado. */
+  async function lendRequest(id) {
+    const r = S.requests.find((x) => idOf(x.id) === idOf(id));
+    if (!r) return;
+    const b = bookById(r.book_id);
+    if (!b) return;
+    if (!(await confirmDialog('Prestar el libro', `¿${r.owner} le presta «${b.title}» a ${r.requester}?`, '🤝 Sí, prestar'))) return;
+    if (await lendBook(b.id, r.requester)) await removeRequest(r.id, false);
   }
 
   async function returnLoan(id) {
@@ -3756,6 +3855,15 @@
   }
 
   function bindLoans() {
+    $('#loanAsk').addEventListener('click', newRequest);
+    $('#loanRequests').addEventListener('click', (e) => {
+      const lend = e.target.closest('[data-req-lend]');
+      if (lend) return lendRequest(lend.dataset.reqLend);
+      const rm = e.target.closest('[data-req-rm]');
+      if (rm) return removeRequest(rm.dataset.reqRm);
+      const open = e.target.closest('[data-loan-open]');
+      if (open) openBookDetail(open.dataset.loanOpen);
+    });
     $('#loanNew').addEventListener('click', () => {
       if (S.missing.has(T.loans)) { toast('Falta preparar los préstamos en Supabase.', 4000); return; }
       openPick(null, 'loan');
@@ -4030,11 +4138,11 @@
   /* =================================================================
      18. CARGA, SINCRONIZACIÓN EN TIEMPO REAL Y ARRANQUE
      ================================================================= */
-  const LIST_OF = { [T.wishes]: 'wishes', [T.ratings]: 'ratings', [T.journeys]: 'journeys', [T.sessions]: 'sessions', [T.pending]: 'pending', [T.loans]: 'loans', [T.recs]: 'recs', [T.people]: 'people' };
+  const LIST_OF = { [T.wishes]: 'wishes', [T.ratings]: 'ratings', [T.journeys]: 'journeys', [T.sessions]: 'sessions', [T.pending]: 'pending', [T.loans]: 'loans', [T.recs]: 'recs', [T.people]: 'people', [T.requests]: 'requests' };
 
   async function loadAll() {
     const books = await db.all(T.books);
-    const optional = [T.wishes, T.ratings, T.journeys, T.sessions, T.pending, T.loans, T.recs, T.people];
+    const optional = [T.wishes, T.ratings, T.journeys, T.sessions, T.pending, T.loans, T.recs, T.people, T.requests];
     const results = await Promise.allSettled(optional.map((t) => db.all(t)));
     S.books = books.map(prepBook);
     S.idIsUuid = books.every((b) => isUuid(b.id));

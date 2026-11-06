@@ -12,7 +12,7 @@
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="icon" href="../icons/icon-192.png">
 <link rel="apple-touch-icon" href="../icons/icon-192.png">
-<link rel="stylesheet" href="./styles.css?v=13">
+<link rel="stylesheet" href="./styles.css?v=14">
 </head>
 <body>
 
@@ -54,7 +54,7 @@
       <button class="navbtn" type="button" data-page="ratings"><span class="nicon">⭐</span><span><b>Califica tu viaje</b><small>Puntúa y recuerda tus lecturas</small></span></button>
       <button class="navbtn" type="button" data-page="calendar"><span class="nicon">📅</span><span><b>Mi ruta de lectura</b><small>Los libros leídos día a día</small></span></button>
       <button class="navbtn" type="button" data-page="pending"><span class="nicon">🔖</span><span><b>Aventuras pendientes</b><small>Las próximas historias de la lista</small></span></button>
-      <button class="navbtn" type="button" data-page="loans"><span class="nicon">🤝</span><span><b>Libros de viaje</b><small>Los libros prestados y a quién</small></span></button>
+      <button class="navbtn" type="button" data-page="loans"><span class="nicon">🤝</span><span><b>Libros de viaje</b><small>Préstamos y solicitudes de libros</small></span></button>
       <button class="navbtn" type="button" data-page="stats"><span class="nicon">🏆</span><span><b>El rincón de los números</b><small>Curiosidades de nuestras lecturas</small></span></button>
     </nav>
     <button class="navbtn switch-app" id="switchHome" type="button"><span class="nicon">🏠</span><span><b>Cambiar de aplicación</b><small>Volver al inicio de Hogar</small></span></button>
@@ -218,8 +218,11 @@
 
   <!-- ===================== LIBROS DE VIAJE (PRÉSTAMOS) ===================== -->
   <section class="page" id="loans">
-    <div class="hero"><div><h2>Libros de viaje</h2><p>Los libros de casa que están de viaje: de quién son, a quién se han prestado y desde cuándo. Pulsa «Devuelto» cuando vuelvan a casa.</p></div><button type="button" class="add-btn home loan-new" id="loanNew">🤝 Prestar un libro</button></div>
+    <div class="hero"><div><h2>Libros de viaje</h2><p>Los libros de casa que están de viaje: de quién son, a quién se han prestado y desde cuándo. Pulsa «Devuelto» cuando vuelvan a casa. Y si quieres un libro de otra persona, pídeselo aquí.</p></div><div class="loan-buttons"><button type="button" class="add-btn loan-ask" id="loanAsk">🙋 Pedir un libro</button><button type="button" class="add-btn home loan-new" id="loanNew">🤝 Prestar un libro</button></div></div>
+    <h3 class="loan-sub">🤝 Prestados ahora</h3>
     <div class="loan-list" id="loansGrid"></div>
+    <h3 class="loan-sub">🙋 Solicitudes de préstamo <small id="loanReqCount"></small></h3>
+    <div class="loan-list" id="loanRequests"></div>
   </section>
 
   <!-- ===================== EL RINCÓN DE LOS NÚMEROS ===================== -->
@@ -458,7 +461,7 @@
 
 <!-- Supabase y el lector de códigos se cargan desde app.js (con CDN alternativo y tiempo máximo) para que la pantalla de carga nunca se quede en 0 %. -->
 <script defer src="./supabase-config.js"></script>
-<script defer src="./app.js?v=13"></script>
+<script defer src="./app.js?v=14"></script>
 <script>
   // Red de seguridad: si app.js no llega a arrancar (sin cobertura), se ofrece recargar en vez de quedarse en 0 %.
   setTimeout(function () {

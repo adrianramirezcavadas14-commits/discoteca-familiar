@@ -1,5 +1,11 @@
 # Registro de archivos modificados y añadidos
 
+## Versión 14 · 06/11/2026
+
+- **Discoteca**: nuevas secciones «Discos de viaje» (préstamos con flecha dueño → quien lo tiene, «Devuelto» y solicitudes de préstamo) y «Álbumes pendientes» (una lista por persona que mezcla pendientes propios y recomendaciones de otros; 5 a la vista y «Ver más»). Archivo nuevo `discos-extra.js` (una línea en `index.html`); datos en el proyecto de la biblioteca: `sql/discos_prestamos_y_pendientes.sql`.
+- **Biblioteca**: solicitudes de préstamo en «Libros de viaje»: quién lo pide → a quién → solo los libros de esa persona; «Prestárselo» lo convierte en préstamo. `libros/app.js`, `libros/index.html`, `libros/styles.css`, `libros/sql/v14_solicitudes_de_prestamo.sql`.
+- Los nombres de fuera de la familia se comparten entre biblioteca y discoteca. `service-worker.js`: caché `hogar-v14-20261106`.
+
 ## Versión 13 · 05/11/2026
 
 - **Biblioteca**: nueva sección «Libros de viaje» (préstamos: libro de casa → persona de la familia o nombre escrito, flecha dueño → quien lo tiene y botón «Devuelto»). «Aventuras pendientes» con pestañas por persona: «Pendientes de leer» y «Recomendaciones» (quién lo recomienda; pasar a Libros soñados, a Mi ruta de lectura o quitar), 5 a la vista y «Ver más». Nombres de fuera de la familia guardados para la próxima vez.

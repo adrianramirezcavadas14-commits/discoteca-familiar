@@ -905,3 +905,16 @@ button.leg:hover { background: #efe8dc; }
   .name-form { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .loan-arrow i { animation: none; } }
+
+/* ====== v14 · Solicitudes de préstamo ====== */
+.loan-buttons { display: flex; flex-wrap: wrap; gap: 8px; align-self: center; justify-content: flex-end; flex: 0 0 auto; }
+.loan-sub { margin: 26px 0 0; font-size: 20px; display: flex; align-items: center; gap: 8px; }
+.loan-sub small { color: var(--muted); font-size: 13px; font-weight: 800; }
+.loan-sub + .loan-list { margin-top: 12px; }
+.req-card { border-style: dashed; }
+.loan-arrow.ask i { background: repeating-linear-gradient(90deg, #9a8fd1 0 8px, transparent 8px 13px); }
+.loan-arrow.ask i::after { border-left-color: #9a8fd1; }
+.req-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.req-actions .loan-back:disabled { opacity: .5; }
+.req-no { border: 0; border-radius: 14px; background: #fff1ee; color: #a2412f; font-weight: 900; padding: 12px 14px; min-height: 46px; }
+@media (max-width: 760px) { .loan-buttons { width: 100%; } .loan-buttons .add-btn { flex: 1 1 45%; } }
