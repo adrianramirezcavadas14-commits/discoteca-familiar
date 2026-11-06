@@ -2062,11 +2062,11 @@
   }
 
   /* ---------- Búsqueda por título y/o autor ---------- */
-  function openTitleSearch(purpose, person = null) {
+  function openTitleSearch(purpose, person = null, title = '') {
     S.searchCtx = { purpose, person, results: [], stack: [] };
     $('#searchModalTitle').textContent = purpose === 'wish' ? `Nuevo libro soñado para ${person}` : purpose === 'pend' ? `Aventura pendiente para ${person}` : purpose === 'rec' ? `Recomendar un libro a ${person}` : 'Buscar por título o autor';
     $('#searchModalHint').textContent = 'Escribe el título, el autor o los dos. Buscamos en Agapea, Open Library y Google Books.';
-    $('#tsTitle').value = purpose === 'add' ? $('#fTitle').value.trim() : '';
+    $('#tsTitle').value = purpose === 'add' ? $('#fTitle').value.trim() : title;
     $('#tsAuthor').value = purpose === 'add' ? (authorsField.get()[0] || '') : '';
     $('#tsError').textContent = '';
     openModal($('#searchModal'));
@@ -3388,6 +3388,7 @@
     $('#pickTitle').textContent = mode === 'loan' ? '¿Qué libro se va de viaje?' : mode === 'request' ? `¿Qué libro le pides a ${S.pick.owner}?` : mode === 'rec' ? `Recomendar un libro a ${person}` : `Próxima parada para ${person}`;
     $('#pickHint').textContent = mode === 'loan' ? 'Elige el libro de casa que vas a prestar.' : mode === 'request' ? `Solo salen los libros de casa que son de ${S.pick.owner}.` : 'Busca por título o autor dentro de la biblioteca familiar.';
     $('#pickQuery').value = '';
+    $('#pickWeb').hidden = !(mode === 'pend' || mode === 'rec');
     renderPick();
     openModal($('#pickModal'));
     setTimeout(() => $('#pickQuery').focus(), 80);
@@ -3598,6 +3599,14 @@
     });
     $('#pickClose').addEventListener('click', () => closeModal($('#pickModal')));
     $('#pickQuery').addEventListener('input', renderPick);
+    // ¿No está en casa? → búsqueda en internet con elección de edición (portada, editorial, año).
+    $('#pickWeb').addEventListener('click', () => {
+      const q = $('#pickQuery').value.trim();
+      const { mode, person } = S.pick;
+      closeModal($('#pickModal'));
+      openTitleSearch(mode, person, q);
+      if (q.length >= 2) setTimeout(() => $('#tsGo').click(), 120);
+    });
     $('#pickResults').addEventListener('click', (e) => {
       const b = e.target.closest('[data-pick-book]');
       if (!b) return;

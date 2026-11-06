@@ -1,5 +1,11 @@
 # Registro de archivos modificados y añadidos
 
+## Versión 15 · 06/11/2026
+
+- **Discoteca · Álbumes pendientes**: «🌍 Buscar en internet» (y desde «De casa» cuando no está) busca en MusicBrainz y Discogs y muestra las ediciones con portada, año, país, formato y sello; la elegida se guarda con su portada y enlace. Portadas más grandes en la lista y en el detalle. `discos-extra.js`, columnas nuevas en `sql/discos_prestamos_y_pendientes.sql`.
+- **Biblioteca**: en «De casa» de Pendientes y Recomendaciones, botón «Búscalo en internet» que abre la búsqueda (Agapea, Open Library, Google Books) con lo escrito para elegir la edición. `libros/app.js`, `libros/index.html`, `libros/styles.css`.
+- `service-worker.js`: caché `hogar-v15-20261106`.
+
 ## Versión 14 · 06/11/2026
 
 - **Discoteca**: nuevas secciones «Discos de viaje» (préstamos con flecha dueño → quien lo tiene, «Devuelto» y solicitudes de préstamo) y «Álbumes pendientes» (una lista por persona que mezcla pendientes propios y recomendaciones de otros; 5 a la vista y «Ver más»). Archivo nuevo `discos-extra.js` (una línea en `index.html`); datos en el proyecto de la biblioteca: `sql/discos_prestamos_y_pendientes.sql`.

@@ -918,3 +918,7 @@ button.leg:hover { background: #efe8dc; }
 .req-actions .loan-back:disabled { opacity: .5; }
 .req-no { border: 0; border-radius: 14px; background: #fff1ee; color: #a2412f; font-weight: 900; padding: 12px 14px; min-height: 46px; }
 @media (max-width: 760px) { .loan-buttons { width: 100%; } .loan-buttons .add-btn { flex: 1 1 45%; } }
+
+/* ====== v15 · Buscar en internet desde «De casa» ====== */
+.pick-web { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.pick-web .add-btn { width: 100%; justify-content: center; }

@@ -12,7 +12,7 @@
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="icon" href="../icons/icon-192.png">
 <link rel="apple-touch-icon" href="../icons/icon-192.png">
-<link rel="stylesheet" href="./styles.css?v=14">
+<link rel="stylesheet" href="./styles.css?v=15">
 </head>
 <body>
 
@@ -322,6 +322,7 @@
     <p id="pickHint">Busca por título o autor dentro de la biblioteca familiar.</p>
     <input class="pick-input" id="pickQuery" type="text" autocomplete="off" placeholder="🔎  Título o autor…" aria-label="Buscar en la biblioteca familiar">
     <div class="pick-results" id="pickResults"></div>
+    <div class="pick-web" id="pickWeb" hidden><button type="button" class="add-btn">🔎 ¿No está en casa? Búscalo en internet y elige la edición</button></div>
   </div>
 </div>
 
@@ -461,7 +462,7 @@
 
 <!-- Supabase y el lector de códigos se cargan desde app.js (con CDN alternativo y tiempo máximo) para que la pantalla de carga nunca se quede en 0 %. -->
 <script defer src="./supabase-config.js"></script>
-<script defer src="./app.js?v=14"></script>
+<script defer src="./app.js?v=15"></script>
 <script>
   // Red de seguridad: si app.js no llega a arrancar (sin cobertura), se ofrece recargar en vez de quedarse en 0 %.
   setTimeout(function () {

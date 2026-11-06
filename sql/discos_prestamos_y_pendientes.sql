@@ -72,3 +72,14 @@ begin
 end $$;
 
 notify pgrst, 'reload schema';
+
+-- v15 · Datos de la edición elegida en MusicBrainz o Discogs (portada, año, país, sello y enlace)
+alter table public.disc_pending
+  add column if not exists year        text check (year is null or char_length(year) <= 10),
+  add column if not exists country     text check (country is null or char_length(country) <= 60),
+  add column if not exists label       text check (label is null or char_length(label) <= 200),
+  add column if not exists source      text check (source is null or char_length(source) <= 40),
+  add column if not exists source_url  text check (source_url is null or char_length(source_url) <= 2000),
+  add column if not exists cover_alt   text check (cover_alt is null or char_length(cover_alt) <= 2000);
+
+notify pgrst, 'reload schema';
