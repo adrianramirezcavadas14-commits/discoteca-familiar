@@ -11,3 +11,7 @@ verify_jwt = false
 
 [functions.compra-recetas]
 verify_jwt = false
+
+# Discoteca: busca el álbum en Spotify (necesita SPOTIFY_CLIENT_ID y SPOTIFY_CLIENT_SECRET como secretos).
+[functions.spotify-buscar]
+verify_jwt = false

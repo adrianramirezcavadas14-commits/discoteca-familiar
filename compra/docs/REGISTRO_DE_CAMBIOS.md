@@ -1,5 +1,9 @@
 # Registro de archivos modificados y añadidos
 
+## Versión 17 · 06/11/2026
+
+- **Discoteca · Spotify**: nueva función de Supabase `spotify-buscar` (API oficial de Spotify, secretos SPOTIFY_CLIENT_ID y SPOTIFY_CLIENT_SECRET solo en el servidor) que devuelve el primer álbum con ese nombre de ese artista y su primera canción; la discoteca abre esa canción dentro del álbum. Si la función no está desplegada, sigue el método anterior (Deezer + song.link) y, si no, la búsqueda. `compra/supabase/functions/spotify-buscar/index.ts`, `compra/supabase/config.toml`, `discos-extra.js`, `service-worker.js` (caché `hogar-v17-20261106`).
+
 ## Versión 16 · 06/11/2026
 
 - **Novedades del buzón**: cuando se acepta una sugerencia, a cada dispositivo le sale en primer plano al entrar (en Hogar, la biblioteca o la despensa) hasta que pulsa «¡Entendido!»; no vuelve a salir hasta que se acepte otra. Quien la acepta no la ve como novedad. Un dispositivo nuevo solo ve la última. `buzon.js` (ahora también cargado en `libros/index.html` y `compra/index.html`), `index.html`, `service-worker.js` (caché `hogar-v16-20261106`). Sin SQL nuevo.
