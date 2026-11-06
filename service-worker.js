@@ -2,7 +2,7 @@
    - Solo guarda en caché archivos propios de Hogar (mismo origen) con respuesta correcta.
    - No toca las peticiones a Supabase (ni a sus funciones), Open Library, Google Books, imágenes de Mercadona ni CDN: van siempre a la red.
    - Al cambiar CACHE se eliminan solo las cachés antiguas de Hogar. */
-const CACHE = 'hogar-v17-20261106';
+const CACHE = 'hogar-v18-20261106';
 const NETWORK_WAIT = 3500; // ms antes de usar la copia guardada si la red va muy lenta
 const CORE = [
   './',
@@ -14,6 +14,7 @@ const CORE = [
   './camera-controls.js',
   './scanner-core.js',
   './buzon.js',
+  './hogar-user.js',
   './discos-extra.js',
   './libros/',
   './libros/index.html',
@@ -133,3 +134,43 @@ function networkFirst(request) {
       .catch(() => { clearTimeout(timer); offlineFallback(request).then(finish); });
   });
 }
+
+
+/* =====================================================================
+   AVISOS (notificaciones push) de Hogar
+   ===================================================================== */
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { title: 'Hogar', body: event.data ? event.data.text() : '' }; }
+  const scope = self.registration.scope;
+  const title = data.title || 'Hogar';
+  const options = {
+    body: data.body || '',
+    icon: new URL('icons/icon-192.png', scope).href,
+    badge: new URL('icons/icon-192.png', scope).href,
+    tag: data.tag || undefined,
+    renotify: !!data.tag,
+    data: { url: new URL(data.url || 'index.html', scope).href },
+    lang: 'es'
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url || self.registration.scope;
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const same = wins.find((w) => new URL(w.url).origin === new URL(target).origin);
+    if (same) {
+      try { await same.focus(); } catch { /* nada */ }
+      try { return await same.navigate(target); } catch { /* algunos navegadores no dejan: se abre otra */ }
+    }
+    return self.clients.openWindow(target);
+  })());
+});
+
+// Si el navegador renueva la suscripción, se avisa a las ventanas abiertas para registrarla otra vez.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(self.clients.matchAll({ type: 'window' }).then((wins) => wins.forEach((w) => w.postMessage({ type: 'hogar-push-renew' }))));
+});

@@ -462,7 +462,7 @@
 
 <!-- Supabase y el lector de códigos se cargan desde app.js (con CDN alternativo y tiempo máximo) para que la pantalla de carga nunca se quede en 0 %. -->
 <script defer src="./supabase-config.js"></script>
-<script defer src="./app.js?v=15"></script>
+<script defer src="./app.js?v=16"></script>
 <script>
   // Red de seguridad: si app.js no llega a arrancar (sin cobertura), se ofrece recargar en vez de quedarse en 0 %.
   setTimeout(function () {
@@ -476,6 +476,6 @@
     c.onclick = function () { location.href = '../index.html'; };
   }, 20000);
 </script>
-<script defer src="../buzon.js?v=3"></script>
+<script defer src="../hogar-user.js?v=1"></script><script defer src="../buzon.js?v=4"></script>
 </body>
 </html>

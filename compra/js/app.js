@@ -1,9 +1,9 @@
 /* =====================================================================
    HOGAR · NUESTRA DESPENSA FAMILIAR · Arranque, menú y navegación
    ===================================================================== */
-import { APP_VERSION, SHOPPERS } from './config.js';
+import { APP_VERSION } from './config.js';
 import { api, loadSupabaseLib, configProblem, explainError, isNetworkError } from './data/api.js';
-import { S, thumbFor, initDevice, loadLocal, loadRemote, familyKey, setFamilyKey, setMe, processQueue, flushDraft, flushOnExit, onChange, refreshLists, refreshOverrides, refreshFrequency, refreshProducts, recomputeZones, queueInfo } from './data/store.js';
+import { S, thumbFor, initDevice, loadLocal, loadRemote, familyKey, setFamilyKey, processQueue, flushDraft, flushOnExit, onChange, refreshLists, refreshOverrides, refreshFrequency, refreshProducts, recomputeZones, queueInfo } from './data/store.js';
 import { $, $$, Loader, dialog, toast, setSync, topModal, closeModal, cancelDialog, setImageResolver } from './ui/dom.js';
 import { watchOrientation } from './ui/map.js';
 import { esc } from './core/text.js';
@@ -215,14 +215,15 @@ async function askKey(reason = '') {
   return k;
 }
 
-async function askWho(force = false) {
-  if (S.me && !force) return S.me;
+/** Para lo que necesita a Papá, Mamá o Adrián (por ejemplo, marcar un ticket como pagado). */
+async function askWho() {
+  if (S.me) return S.me;
   const r = await dialog({
-    title: '¿Quién usa este dispositivo?',
-    message: 'Sirve para saber quién hizo cada cambio. Se puede cambiar en Ajustes.',
-    buttons: [...SHOPPERS.map((s) => ({ label: s.name, value: s.code, kind: S.me === s.code ? 'primary' : '' })), { label: 'Ahora no', value: null }]
+    title: 'Hace falta Papá, Mamá o Adrián',
+    message: `Has entrado en Hogar como ${window.HogarUser?.get?.() || 'invitado'}. Para esto, entra como Papá, Mamá o Adrián desde el icono del perfil (arriba a la derecha).`,
+    buttons: [{ label: 'Cambiar de usuario', value: 'switch', kind: 'primary' }, { label: 'Ahora no', value: null }]
   });
-  if (r.value) { setMe(r.value); toast(`Hola, ${SHOPPERS.find((s) => s.code === r.value).name}`); }
+  if (r.value === 'switch' && window.HogarUser?.switchUser) await window.HogarUser.switchUser();
   return S.me;
 }
 
@@ -268,7 +269,6 @@ async function connect(silent = false) {
     await runEntrySync();            // comprobación del catálogo en cada entrada (con progreso)
     if (Loader.isOpen()) await Loader.hide();
     await finishBoot();
-    if (!S.me) await askWho();
     await runEntryReviews();
   } catch (e) {
     (isNetworkError(e) ? console.warn : console.error)(e);

@@ -877,6 +877,16 @@
     if (!build()) return;
     injectStyles();
     bind();
+    // Desde un aviso: index.html?abrir=discLoans o ?abrir=discPending
+    const abrir = new URLSearchParams(location.search).get('abrir');
+    if (abrir === 'discLoans' || abrir === 'discPending') {
+      const go = () => {
+        $('#enterDiscs')?.click();
+        showMyPage(abrir);
+        try { history.replaceState(null, '', location.pathname + location.hash); } catch { /* nada */ }
+      };
+      (window.HogarUser?.ready?.() || Promise.resolve()).then(() => setTimeout(go, 150));
+    }
   }
   window.HogarDiscosExtra = { refresh, discKey, findSpotify };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();

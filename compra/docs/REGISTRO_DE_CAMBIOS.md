@@ -1,5 +1,12 @@
 # Registro de archivos modificados y añadidos
 
+## Versión 18 · 06/11/2026
+
+- **Usuario de Hogar** (`hogar-user.js`, en la discoteca, la biblioteca y la despensa): al entrar se elige Papá, Mamá, María, Adrián o Invitado; icono del perfil arriba a la derecha (cambiar de usuario, cerrar sesión, probar un aviso). La familia tiene que permitir los avisos para entrar; Invitado no recibe avisos.
+- **Avisos push** (Web Push estándar, sin servicios de pago): solicitudes de préstamo (al dueño), recomendaciones de libros y álbumes (a quien se le recomienda), recordatorios cada 30 días de préstamos (dueños y quien lo tiene), novedades del buzón aceptadas (a todos menos a quien la acepta), sugerencias nuevas (solo a Adrián, salvo las suyas) y productos marcados para revisar en la despensa (solo a Adrián, salvo los suyos). `sql/hogar_avisos.sql`, función `compra/supabase/functions/hogar-push/index.ts`, `service-worker.js` (avisos y caché `hogar-v18-20261106`).
+- **Despensa 1.4**: ya no pregunta «¿Quién usa este dispositivo?»; usa el usuario de Hogar (Papá, Mamá y Adrián dejan su inicial). `compra/js/data/store.js`, `compra/js/ui/who.js`, `compra/js/app.js`, `compra/js/pages/settings.js`, pruebas.
+- Enlaces desde los avisos: `libros/#loans`, `libros/#pending`, `index.html?abrir=discLoans|discPending|buzon`. `libros/app.js`, `discos-extra.js`, `buzon.js`.
+
 ## Versión 17 · 06/11/2026
 
 - **Discoteca · Spotify**: nueva función de Supabase `spotify-buscar` (API oficial de Spotify, secretos SPOTIFY_CLIENT_ID y SPOTIFY_CLIENT_SECRET solo en el servidor) que devuelve el primer álbum con ese nombre de ese artista y su primera canción; la discoteca abre esa canción dentro del álbum. Si la función no está desplegada, sigue el método anterior (Deezer + song.link) y, si no, la búsqueda. `compra/supabase/functions/spotify-buscar/index.ts`, `compra/supabase/config.toml`, `discos-extra.js`, `service-worker.js` (caché `hogar-v17-20261106`).

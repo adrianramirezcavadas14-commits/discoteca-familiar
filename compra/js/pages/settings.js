@@ -1,7 +1,7 @@
 /* =====================================================================
    «Los ajustes» · Persona, clave, catálogo, categorías, zonas y datos
    ===================================================================== */
-import { S, setMe, setSetting, updateZone, zonesByRoute, queueInfo, processQueue, discardFailedOps, clearLocal } from '../data/store.js';
+import { S, setSetting, updateZone, zonesByRoute, queueInfo, processQueue, discardFailedOps, clearLocal } from '../data/store.js';
 import { explainError } from '../data/api.js';
 import { idb } from '../data/idb.js';
 import { manualSync, syncStatusText, syncRunning } from '../ui/sync.js';
@@ -9,7 +9,7 @@ import { toast, dialog, confirmDialog } from '../ui/dom.js';
 import { broadcast } from '../ui/nav.js';
 import { describeOp } from '../core/queue.js';
 import { esc, plural, collator } from '../core/text.js';
-import { SHOPPERS, APP_VERSION } from '../config.js';
+import { APP_VERSION } from '../config.js';
 
 export function render(el) {
   const sections = sectionList();
@@ -20,9 +20,10 @@ export function render(el) {
     <div class="hero"><div><h2 id="h-ajustes">Los ajustes</h2><p>Lo que casi nunca hay que tocar, pero conviene tener a mano.</p></div></div>
     <div class="settings-grid">
       <article class="card">
-        <h3>¿Quién usa este dispositivo?</h3>
-        <p class="muted">Se guarda quién hace cada cambio (zonas, tickets, listas).</p>
-        <div class="who-pick" role="group" aria-label="Persona de este dispositivo">${SHOPPERS.map((s) => `<button type="button" data-me="${s.code}" style="--pc:${s.color}" aria-pressed="${S.me === s.code}">${esc(s.name)}</button>`).join('')}</div>
+        <h3>Usuario de Hogar</h3>
+        <p>Has entrado como <b>${esc(window.HogarUser?.get?.() || '—')}</b>.${S.me ? '' : ' En la despensa solo dejan su inicial Papá, Mamá y Adrián.'}</p>
+        <p class="muted">Es el mismo usuario para toda la aplicación Hogar: se cambia desde el icono del perfil, arriba a la derecha.</p>
+        <div class="row"><button type="button" class="btn ghost" data-me>🔁 Cambiar de usuario</button></div>
       </article>
 
       <article class="card">
@@ -129,7 +130,7 @@ function sectionList() {
 async function onClick(e, el) {
   const t = e.target;
   const me = t.closest('[data-me]');
-  if (me) { setMe(me.dataset.me); toast(`Este dispositivo es de ${SHOPPERS.find((s) => s.code === me.dataset.me).name}.`); return; }
+  if (me) { if (window.HogarUser?.switchUser) { await window.HogarUser.switchUser(); render(el); } return; }
   if (t.closest('[data-sync]')) { await manualSync(); render(el); return; }
   if (t.closest('[data-save-sync]')) {
     const pc = el.querySelector('[data-pc]').value.trim();

@@ -70,10 +70,19 @@ export function initDevice() {
   let id = ls.get(STORAGE_KEYS.device);
   if (!id) { id = uuid(); ls.set(STORAGE_KEYS.device, id); }
   S.deviceId = id;
-  S.me = ls.get(STORAGE_KEYS.me) || null;
+  S.me = hogarCode();
+  // El usuario se elige una sola vez para todo Hogar (icono del perfil, arriba a la derecha).
+  if (typeof window !== 'undefined') window.addEventListener('hogar-user', () => { S.me = hogarCode(); emit('me'); });
   return id;
 }
-export function setMe(code) { S.me = code || null; ls.set(STORAGE_KEYS.me, S.me); emit('me'); }
+/** Usuario de Hogar → perfil de la despensa (solo Papá, Mamá y Adrián tienen perfil aquí). */
+const HOGAR_TO_CODE = { 'Papá': 'papa', 'Mamá': 'mama', 'Adrián': 'adrian' };
+export function hogarUser() {
+  try { return globalThis.HogarUser?.get?.() || globalThis.localStorage?.getItem('hogarUsuario') || null; } catch { return null; }
+}
+export const hogarCode = () => HOGAR_TO_CODE[hogarUser()] || null;
+/** Se mantiene por compatibilidad: la persona ya no se elige en la despensa. */
+export function setMe() { S.me = hogarCode(); emit('me'); }
 export const familyKey = () => ls.get(STORAGE_KEYS.key) || '';
 export const setFamilyKey = (k) => ls.set(STORAGE_KEYS.key, k ? String(k).trim() : null);
 export const profileByCode = (code) => S.profiles.find((p) => p.code === code) || SHOPPERS.find((p) => p.code === code) || null;

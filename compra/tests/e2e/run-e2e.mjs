@@ -41,8 +41,13 @@ function productSvg(url) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300"><rect width="300" height="300" fill="hsl(${hue} 60% 92%)"/><rect x="80" y="60" width="140" height="190" rx="22" fill="hsl(${hue} 55% 55%)"/><text x="150" y="165" font-family="sans-serif" font-size="34" font-weight="700" text-anchor="middle" fill="#fff">${n % 1000}</text></svg>`;
 }
 
-async function newContext(viewport, { offline = false } = {}) {
+async function newContext(viewport, { offline = false, user = 'Mamá' } = {}) {
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, serviceWorkers: 'allow', locale: 'es-ES', timezoneId: 'Europe/Madrid' });
+  // Usuario de Hogar ya elegido y avisos permitidos (simulados: aquí no hay servicio push).
+  await ctx.addInitScript((u) => {
+    try { if (u && !localStorage.getItem('hogarUsuario')) localStorage.setItem('hogarUsuario', u); } catch { /* nada */ }
+    try { Object.defineProperty(Notification, 'permission', { get: () => 'granted', configurable: true }); } catch { /* nada */ }
+  }, user);
   // Playwright aplica primero la última ruta registrada: el bloqueo general va el primero.
   await ctx.route(/^https:\/\/(?!prod-mercadona)/, (r) => r.abort());
   await ctx.route('**/compra/supabase-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: `window.DESPENSA_SUPABASE = { url: '${stack.apiBase}', publishableKey: '${stack.publishable}' };` }));
@@ -81,11 +86,11 @@ try {
     await page.waitForURL(/\/compra\//);
   });
 
-  await step('Sin clave (modo abierto): sincronización inicial (coyote) y quién soy', async () => {
+  await step('Sin clave (modo abierto): sincronización inicial (coyote); la persona es la de Hogar', async () => {
     await page.waitForFunction(() => /coyote\.gif/.test(document.querySelector('#loadingCharacter').src));
-    await page.waitForSelector('#dialogModal.open >> text=¿Quién usa este dispositivo?', { timeout: 60000 });
-    await page.click('#dlgActions button:has-text("Mamá")');
-    await page.waitForSelector('#page-inicio.active h2');
+    await page.waitForSelector('#page-inicio.active h2', { timeout: 60000 });
+    assert.equal(await page.locator('#dialogModal.open >> text=¿Quién usa este dispositivo?').count(), 0, 'la despensa ya no pregunta');
+    assert.ok(await page.locator('header.top .hg-prof .hg-av').isVisible(), 'icono del perfil de Hogar');
     const n = (await q('select count(*)::int n from compra.products'))[0].n;
     assert.ok(n > 400, `catálogo cargado (${n})`);
     await shot(page, '02-despensa-inicio-escritorio');
@@ -400,7 +405,7 @@ try {
     const m = await newContext({ width: 390, height: 844 });
     const mp = await m.newPage();
     watch(mp, 'móvil');
-    await mp.addInitScript((k) => { localStorage.setItem('despensaClaveFamiliar', k); localStorage.setItem('despensaQuienSoy', 'papa'); }, stack.familyKey);
+    await mp.addInitScript((k) => { localStorage.setItem('despensaClaveFamiliar', k); localStorage.setItem('hogarUsuario', 'Papá'); }, stack.familyKey);
     await mp.goto(`${stack.webBase}/compra/#compra`);
     await mp.waitForSelector('#page-compra.active [data-start]', { timeout: 30000 });
     await mp.click('#page-compra [data-start]');
@@ -543,7 +548,7 @@ try {
       const c = await newContext({ width: w, height: h });
       const p = await c.newPage();
       watch(p, tag);
-      await p.addInitScript((k) => { localStorage.setItem('despensaClaveFamiliar', k); localStorage.setItem('despensaQuienSoy', 'adrian'); }, stack.familyKey);
+      await p.addInitScript((k) => { localStorage.setItem('despensaClaveFamiliar', k); localStorage.setItem('hogarUsuario', 'Adrián'); }, stack.familyKey);
       for (const route of ['inicio', 'mapa', 'lista', 'numeros', 'ajustes']) {
         await p.goto(`${stack.webBase}/compra/#${route}`);
         await p.waitForSelector(`#page-${route}.active h2`, { timeout: 30000 });
@@ -563,27 +568,26 @@ try {
     }
   });
 
-  await step('Quién apunta: si el dispositivo no lo sabe, se pregunta antes de añadir', async () => {
-    const c = await newContext({ width: 1280, height: 900 });
-    const p = await c.newPage();
-    watch(p, 'sin persona');
-    await p.addInitScript((k) => { localStorage.setItem('despensaClaveFamiliar', k); }, stack.familyKey);
-    await p.goto(`${stack.webBase}/compra/#lista`);
-    const who = p.locator('#dialogModal.open >> text=¿Quién usa este dispositivo?');
-    await p.waitForSelector('#page-lista .store-map', { timeout: 30000 });
-    if (await who.count()) await p.click('#dlgActions button:has-text("Ahora no")');
-    await p.click('#page-lista .zone-shape.main[aria-label^="Zona 3:"]');
-    await p.waitForSelector('#page-lista .zone-nav');
-    const card = p.locator('#page-lista .pcard:not(.in)').first();
-    const id = await card.getAttribute('data-pid');
-    await card.locator('[data-inc]').click();
-    await p.waitForSelector('#dialogModal.open >> text=Antes de apuntarlo en la lista');
-    assert.equal(await p.locator(`#page-lista .li-row[data-pid="${id}"]`).count(), 0, 'no se añade antes de responder');
-    await p.click('#dlgActions button:has-text("Adrián")');
-    await p.waitForSelector(`#page-lista .li-row[data-pid="${id}"] .who-badge`);
-    assert.equal(await p.textContent(`#page-lista .li-row[data-pid="${id}"] .who-badge`), 'A');
-    await shot(p, '12-inicial-quien-apunta');
-    await c.close();
+  await step('Quién apunta: la inicial sale del usuario de Hogar (sin preguntar en la despensa)', async () => {
+    for (const [user, badge] of [['Adrián', 'A'], ['María', null]]) {
+      const c = await newContext({ width: 1280, height: 900 }, { user });
+      const p = await c.newPage();
+      watch(p, `usuario ${user}`);
+      await p.addInitScript((k) => { localStorage.setItem('despensaClaveFamiliar', k); }, stack.familyKey);
+      await p.goto(`${stack.webBase}/compra/#lista`);
+      await p.waitForSelector('#page-lista .store-map', { timeout: 30000 });
+      await p.click('#page-lista .zone-shape.main[aria-label^="Zona 3:"]');
+      await p.waitForSelector('#page-lista .zone-nav');
+      const card = p.locator('#page-lista .pcard:not(.in)').first();
+      const id = await card.getAttribute('data-pid');
+      await card.locator('[data-inc]').click();
+      await p.waitForSelector(`#page-lista .li-row[data-pid="${id}"]`);
+      assert.equal(await p.locator('#dialogModal.open').count(), 0, 'no se pregunta quién eres');
+      if (badge) assert.equal(await p.textContent(`#page-lista .li-row[data-pid="${id}"] .who-badge`), badge);
+      else assert.equal(await p.locator(`#page-lista .li-row[data-pid="${id}"] .who-badge`).count(), 0, 'María: sin inicial en la despensa');
+      if (badge) await shot(p, '12-inicial-quien-apunta');
+      await c.close();
+    }
   });
 
   await step('La discoteca y la biblioteca siguen abriendo', async () => {

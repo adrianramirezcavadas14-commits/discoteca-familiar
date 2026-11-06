@@ -73,6 +73,14 @@
     if (r && r.ok === false) throw new Error(r.message || 'No se ha podido completar.');
     return r;
   };
+  /** Igual, añadiendo el usuario de Hogar (si la base de datos aún no lo admite, se envía sin él). */
+  const me = () => { try { return window.HogarUser?.get?.() || null; } catch { return null; } };
+  const rpcUser = async (name, args) => {
+    try { return await rpc(name, { ...args, p_user: me() }); } catch (e) {
+      if (/no está preparado/.test(e.message)) return rpc(name, args);
+      throw e;
+    }
+  };
 
   /* ---------- Estilos (prefijo bz- para no chocar con la discoteca) ---------- */
   function injectStyles() {
@@ -279,7 +287,7 @@ html.bz-locked,html.bz-locked body{overflow:hidden!important}
     $('#bzSend').disabled = true;
     setMsg('Enviando…');
     try {
-      const r = await rpc('hogar_suggestion_add', { p_body: txt });
+      const r = await rpcUser('hogar_suggestion_add', { p_body: txt });
       if (r?.row) st.rows = [r.row, ...st.rows.filter((x) => x.id !== r.row.id)];
       body.value = '';
       $('#bzChars').textContent = `0 / ${MAX}`;
@@ -338,7 +346,7 @@ html.bz-locked,html.bz-locked body{overflow:hidden!important}
     const pin = await ask({ title: status === 'accepted' ? '✅ Aceptar la sugerencia' : '❌ Rechazar la sugerencia', text: status === 'accepted' ? 'Aceptarla significa que ya está metida en Hogar. Escribe la contraseña:' : 'Escribe la contraseña para rechazarla:', pin: true, ok: status === 'accepted' ? 'Aceptar' : 'Rechazar', kind: status === 'accepted' ? 'ok' : 'no' });
     if (!pin) return;
     await act(async () => {
-      const r = await rpc('hogar_suggestion_resolve', { p_id: id, p_status: status, p_pin: pin });
+      const r = await rpcUser('hogar_suggestion_resolve', { p_id: id, p_status: status, p_pin: pin });
       if (status === 'accepted' && r?.row && newsStamp(r.row) > readSeen()) writeSeen(newsStamp(r.row));   // quien la acepta ya la conoce
       return r;
     }, status === 'accepted' ? 'Sugerencia aceptada. Le saldrá como novedad a todos al entrar.' : 'Sugerencia rechazada.');
@@ -438,8 +446,14 @@ html.bzn-locked,html.bzn-locked body{overflow:hidden!important}`;
 
   function init() {
     injectStyles();
-    setTimeout(checkNews, 900);
+    // Las novedades salen después de elegir usuario (y de permitir los avisos).
+    const gateDone = window.HogarUser?.ready?.() || Promise.resolve();
+    gateDone.then(() => setTimeout(checkNews, 600));
     addButton();
+    // Desde un aviso: index.html?abrir=buzon
+    if (new URLSearchParams(location.search).get('abrir') === 'buzon') {
+      gateDone.then(() => { openBuzon(); try { history.replaceState(null, '', location.pathname + location.hash); } catch { /* nada */ } });
+    }
     // Contador de pendientes en el botón (en silencio: si falla, el botón funciona igual).
     request('hogar_suggestions?select=id,status&status=eq.pending').then((rows) => {
       if (Array.isArray(rows) && !st.rows.length) {

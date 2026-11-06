@@ -4365,6 +4365,9 @@
     if (loadCache()) applySearch();
     else renderTable();
     connect();
+    // Desde un aviso: libros/#loans, libros/#pending…
+    const deep = decodeURIComponent(location.hash.replace(/^#/, ''));
+    if (deep && document.getElementById(deep)?.classList.contains('page')) showPage(deep);
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => navigator.serviceWorker.register('../service-worker.js', { scope: '../' })
         .then((reg) => reg.update().catch(() => {}))
