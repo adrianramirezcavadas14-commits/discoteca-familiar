@@ -12,6 +12,9 @@
   if (window.HogarBuzon) return;
 
   const SQL_FILE = 'sql/buzon_sugerencias.sql';
+  // Carpeta de Hogar (este archivo está en la raíz), para que funcione igual desde /libros/ o /compra/.
+  const BASE = (() => { try { return new URL('.', document.currentScript?.src || location.href).href; } catch { return './'; } })();
+  const SEEN_KEY = 'hogarNovedadVista';
   const MAX = 2000;
   const st = { rows: [], open: null, loading: false, error: '', busy: false, cfg: null };
   const $ = (q, el = document) => el.querySelector(q);
@@ -30,7 +33,7 @@
     if (pick()) return Promise.resolve(st.cfg);
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = './libros/supabase-config.js';
+      s.src = `${BASE}libros/supabase-config.js`;
       s.onload = () => (pick() ? resolve(st.cfg) : reject(new Error('Falta la configuración de Supabase de la biblioteca.')));
       s.onerror = () => reject(new Error('No se pudo cargar la configuración (revisa la conexión).'));
       document.head.appendChild(s);
@@ -334,7 +337,11 @@ html.bz-locked,html.bz-locked body{overflow:hidden!important}
   async function resolveItem(id, status) {
     const pin = await ask({ title: status === 'accepted' ? '✅ Aceptar la sugerencia' : '❌ Rechazar la sugerencia', text: status === 'accepted' ? 'Aceptarla significa que ya está metida en Hogar. Escribe la contraseña:' : 'Escribe la contraseña para rechazarla:', pin: true, ok: status === 'accepted' ? 'Aceptar' : 'Rechazar', kind: status === 'accepted' ? 'ok' : 'no' });
     if (!pin) return;
-    await act(() => rpc('hogar_suggestion_resolve', { p_id: id, p_status: status, p_pin: pin }), status === 'accepted' ? 'Sugerencia aceptada.' : 'Sugerencia rechazada.');
+    await act(async () => {
+      const r = await rpc('hogar_suggestion_resolve', { p_id: id, p_status: status, p_pin: pin });
+      if (status === 'accepted' && r?.row && newsStamp(r.row) > readSeen()) writeSeen(newsStamp(r.row));   // quien la acepta ya la conoce
+      return r;
+    }, status === 'accepted' ? 'Sugerencia aceptada. Le saldrá como novedad a todos al entrar.' : 'Sugerencia rechazada.');
   }
   async function deleteItem(id) {
     const r = st.rows.find((x) => x.id === id);
@@ -364,8 +371,74 @@ html.bz-locked,html.bz-locked body{overflow:hidden!important}
     if (dl) deleteItem(dl.dataset.bzDel);
   }
 
+  /* ---------- Novedades: sugerencias aceptadas que este dispositivo aún no ha visto ---------- */
+  const readSeen = () => { try { return localStorage.getItem(SEEN_KEY) || ''; } catch { return ''; } };
+  const writeSeen = (v) => { try { if (v) localStorage.setItem(SEEN_KEY, v); } catch { /* modo privado: se volverá a mostrar */ } };
+  const newsStamp = (r) => `${r.resolved_at || ''}|${r.id}`;
+
+  function newsStyles() {
+    if ($('#bzNewsStyles')) return;
+    const el = document.createElement('style');
+    el.id = 'bzNewsStyles';
+    el.textContent = `
+#bzNews{position:fixed;inset:0;z-index:2300;display:grid;place-items:center;padding:18px;background:#243047a6;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);overflow:auto}
+#bzNews *{box-sizing:border-box}
+#bzNews .bzn-box{position:relative;width:min(520px,100%);background:#fffdf8;border-radius:28px;padding:26px 22px 22px;box-shadow:0 24px 60px #0005;color:#243047;font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:center;animation:bzn-in .35s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes bzn-in{from{transform:translateY(16px) scale(.96);opacity:0}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){#bzNews .bzn-box{animation:none}}
+#bzNews .bzn-ico{display:grid;place-items:center;width:76px;height:76px;margin:-62px auto 10px;border-radius:24px;font-size:40px;background:linear-gradient(135deg,#ffd166,#66c9a7);box-shadow:0 10px 24px #0002}
+#bzNews h2{margin:0 0 4px;font-size:clamp(24px,6vw,30px);line-height:1.1}
+#bzNews .bzn-sub{margin:0 0 16px;color:#687086}
+#bzNews .bzn-list{display:grid;gap:10px;text-align:left;max-height:50vh;overflow:auto}
+#bzNews .bzn-item{background:#e6f6ee;border:2px solid #9fd8bb;border-radius:18px;padding:13px 15px}
+#bzNews .bzn-item p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-weight:700}
+#bzNews .bzn-item small{display:block;margin-top:6px;color:#1f7a52;font-weight:900;font-size:12px}
+#bzNews .bzn-ok{appearance:none;-webkit-appearance:none;margin-top:18px;width:100%;border:0;border-radius:16px;padding:14px;min-height:50px;background:#ff786b;color:#fff;font:inherit;font-size:18px;font-weight:900;cursor:pointer}
+html.bzn-locked,html.bzn-locked body{overflow:hidden!important}`;
+    document.head.appendChild(el);
+  }
+
+  function showNews(items, newest) {
+    if ($('#bzNews')) return;
+    newsStyles();
+    const m = document.createElement('div');
+    m.id = 'bzNews';
+    m.setAttribute('role', 'dialog');
+    m.setAttribute('aria-modal', 'true');
+    m.setAttribute('aria-labelledby', 'bznTitle');
+    m.innerHTML = `<div class="bzn-box">
+      <div class="bzn-ico" aria-hidden="true">🎉</div>
+      <h2 id="bznTitle">${items.length > 1 ? '¡Novedades en Hogar!' : '¡Novedad en Hogar!'}</h2>
+      <p class="bzn-sub">${items.length > 1 ? 'Estas sugerencias del buzón ya están metidas en el programa:' : 'Esta sugerencia del buzón ya está metida en el programa:'}</p>
+      <div class="bzn-list">${items.map((r) => `<div class="bzn-item"><p>${esc(r.body)}</p><small>✅ Añadida el ${esc(fmt(r.resolved_at))}</small></div>`).join('')}</div>
+      <button type="button" class="bzn-ok" id="bznOk">¡Entendido!</button>
+    </div>`;
+    document.body.appendChild(m);
+    document.documentElement.classList.add('bzn-locked');
+    const done = () => {
+      writeSeen(newsStamp(newest));
+      m.remove();
+      document.documentElement.classList.remove('bzn-locked');
+    };
+    $('#bznOk').addEventListener('click', done);
+    setTimeout(() => $('#bznOk')?.focus({ preventScroll: true }), 60);
+  }
+
+  /** Al entrar: si hay sugerencias aceptadas que este dispositivo no ha visto, se muestran en primer plano. */
+  async function checkNews() {
+    let rows;
+    try {
+      rows = await request('hogar_suggestions?select=id,body,resolved_at&status=eq.accepted&order=resolved_at.desc,id.desc&limit=10');
+    } catch { return; }   // sin conexión o sin preparar: no se molesta a nadie
+    if (!Array.isArray(rows) || !rows.length) return;
+    const seen = readSeen();
+    const fresh = seen ? rows.filter((r) => newsStamp(r) > seen) : rows.slice(0, 1);   // dispositivo nuevo: solo la última
+    if (fresh.length) showNews(fresh.slice(0, 5), rows[0]);
+  }
+
   function init() {
     injectStyles();
+    setTimeout(checkNews, 900);
     addButton();
     // Contador de pendientes en el botón (en silencio: si falla, el botón funciona igual).
     request('hogar_suggestions?select=id,status&status=eq.pending').then((rows) => {

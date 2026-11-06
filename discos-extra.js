@@ -147,6 +147,8 @@
 .dx-btn.mint{background:var(--mint);color:#fff}
 .dx-btn.soft{background:#fff1ee;color:#a2412f}
 .dx-btn.grey{background:#eef0f4;color:var(--ink)}
+.dx-btn.spotify{background:#1db954;color:#fff}
+#dxDialog .dx-dlg-actions .dx-btn.spotify{flex:1 1 100%;font-size:17px}
 .dx-btn:disabled{opacity:.5;cursor:default}
 .dx-sub{margin:26px 0 12px;font-size:20px;display:flex;align-items:center;gap:8px}
 .dx-sub small{color:var(--muted);font-size:13px;font-weight:800}
@@ -661,21 +663,116 @@
     await addPending(snap, web.person, !!home);
     if (home) toast('Ese álbum está en casa: se ha apuntado el de la colección.', 3200);
   }
+  /* ---------- Escuchar en Spotify ----------
+     Sin claves: Deezer (JSONP, búsqueda pública) encuentra el álbum y su primera canción,
+     y Odesli/song.link (API pública) da el enlace equivalente de Spotify.
+     Si algo falla, se abre la búsqueda de Spotify con el artista y el álbum. */
+  const spotifyCache = new Map();
+  const spotifyReady = new Map();   // resultados ya conocidos (para abrir en el mismo toque)
+  const spKey = (artist, album) => `${nrm(artist)}|${nrm(album)}`;
+  function jsonp(url, ms = 9000) {
+    return new Promise((resolve, reject) => {
+      const cb = `__dxJsonp${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+      const s = document.createElement('script');
+      const end = (fn, v) => { clearTimeout(t); try { delete window[cb]; } catch { window[cb] = undefined; } s.remove(); fn(v); };
+      const t = setTimeout(() => end(reject, new Error('Deezer no respondió a tiempo')), ms);
+      window[cb] = (data) => end(resolve, data);
+      s.onerror = () => end(reject, new Error('No se pudo consultar Deezer'));
+      s.src = `${url}${url.includes('?') ? '&' : '?'}output=jsonp&callback=${cb}`;
+      document.head.appendChild(s);
+    });
+  }
+  async function odesli(link) {
+    const res = await timed(`https://api.song.link/v1-alpha.1/links?url=${encodeURIComponent(link)}&userCountry=ES`, { headers: { Accept: 'application/json' } }, 9000);
+    if (!res.ok) throw new Error(`song.link ${res.status}`);
+    const js = await res.json();
+    const sp = js.linksByPlatform?.spotify;
+    const m = String(sp?.url || '').match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(album|track)\/([A-Za-z0-9]+)/);
+    return m ? { type: m[1], id: m[2] } : null;
+  }
+  const cleanTitle = (t) => nrm(t).replace(/\s*[([].*?[)\]]\s*/g, ' ').replace(/\b(deluxe|remaster(ed)?|edition|edicion|version|expanded)\b/g, ' ').replace(/[^a-z0-9ñ ]/g, ' ').replace(/\s+/g, ' ').trim();
+  async function findSpotify(artist, album) {
+    const key = spKey(artist, album);
+    if (spotifyCache.has(key)) return spotifyCache.get(key);
+    const job = (async () => {
+      const tries = artist ? [`artist:"${artist}" album:"${album}"`, `${artist} ${album}`] : [album];
+      let hit = null;
+      for (const q of tries) {
+        const r = await jsonp(`https://api.deezer.com/search/album?q=${encodeURIComponent(q)}&limit=10`);
+        const list = r?.data || [];
+        hit = list.find((x) => cleanTitle(x.title) === cleanTitle(album) && (!artist || cleanTitle(x.artist?.name) === cleanTitle(artist)))
+          || list.find((x) => cleanTitle(x.title).includes(cleanTitle(album)) || cleanTitle(album).includes(cleanTitle(x.title)))
+          || null;
+        if (hit) break;
+      }
+      if (!hit) return null;
+      const tracks = await jsonp(`https://api.deezer.com/album/${hit.id}/tracks?limit=1`).catch(() => null);
+      const first = tracks?.data?.[0];
+      const [alb, trk] = await Promise.allSettled([odesli(hit.link || `https://www.deezer.com/album/${hit.id}`), first ? odesli(first.link || `https://www.deezer.com/track/${first.id}`) : Promise.resolve(null)]);
+      const albumId = alb.status === 'fulfilled' && alb.value?.type === 'album' ? alb.value.id : null;
+      const trackId = trk.status === 'fulfilled' && trk.value?.type === 'track' ? trk.value.id : null;
+      if (!albumId && !trackId) return null;
+      return { albumId, trackId, title: hit.title, firstTrack: first?.title || '' };
+    })().catch((e) => { console.warn('[Discoteca] Spotify:', e?.message || e); return null; });
+    spotifyCache.set(key, job);
+    const out = await job;
+    if (!out) spotifyCache.delete(key);   // se volverá a intentar la próxima vez
+    else spotifyReady.set(key, out);
+    return out;
+  }
+  /**
+   * Abre Spotify con el enlace universal open.spotify.com: en el móvil con la app instalada se abre
+   * la app; si no, el reproductor web. La ventana se abre en el mismo toque (si no, el navegador la
+   * bloquearía) y se le pone la dirección cuando ya se conoce. Se puede sustituir en pruebas.
+   */
+  function startWindow() {
+    if (window.HogarDiscosExtra?.openExternal) return null;
+    try { const w = window.open('', '_blank'); if (w) { try { w.opener = null; } catch { /* nada */ } } return w; } catch { return null; }
+  }
+  function openExternal(url, w) {
+    if (window.HogarDiscosExtra?.openExternal) return window.HogarDiscosExtra.openExternal(url);
+    if (w && !w.closed) { try { w.location.href = url; return; } catch { /* sigue */ } }
+    if (!w) { const n = window.open(url, '_blank', 'noopener'); if (n) return; }
+    location.href = url;
+  }
+  async function playOnSpotify(p, pending) {
+    // Si ya se encontró mientras se leía la ficha, se abre directamente (así el móvil abre la app).
+    const w = spotifyReady.has(spKey(p.artist || '', p.album || '')) ? null : startWindow();
+    toast('🎧 Buscando el álbum en Spotify…', 6000);
+    const sp = await pending;
+    if (sp?.trackId || sp?.albumId) {
+      // La primera canción dentro del álbum: Spotify empieza por ella y sigue con el resto del disco.
+      const url = sp.trackId
+        ? `https://open.spotify.com/track/${sp.trackId}${sp.albumId ? `?context=${encodeURIComponent(`spotify:album:${sp.albumId}`)}` : ''}`
+        : `https://open.spotify.com/album/${sp.albumId}`;
+      toast(sp.firstTrack ? `▶️ «${sp.firstTrack}» · ${sp.title}` : `▶️ ${sp.title}`, 3500);
+      openExternal(url, w);
+      return;
+    }
+    const q = `${p.artist || ''} ${p.album || ''}`.trim();
+    toast('No he encontrado el álbum exacto: te abro la búsqueda en Spotify.', 3500);
+    openExternal(`https://open.spotify.com/search/${encodeURIComponent(q)}`, w);
+  }
+
   async function openPendingItem(id) {
     const p = st.pending.find((x) => x.id === id);
     if (!p) return;
     const d = p.in_home ? discByKey(p.disc_key) : null;
     const own = p.added_by === p.person;
+    // Se empieza a buscar en Spotify mientras se lee la ficha, para que el botón responda al momento.
+    const spotifyJob = findSpotify(p.artist || '', p.album || '');
     const choice = await dialog({
       title: p.album || 'Sin título',
       html: `<div class="dx-dlg-disc">${thumb(coverFor(p), p.album, p.cover_alt, 'big')}<div><p><b>${esc(p.artist || 'Artista desconocido')}</b></p>${[p.year, p.category, p.country].filter(Boolean).length ? `<p class="dx-hint">${esc([p.year, p.category, p.country].filter(Boolean).join(' · '))}${p.label ? ` · ${esc(p.label)}` : ''}</p>` : ''}<p>${own ? `🎧 ${esc(p.person)} lo tiene pendiente` : `💌 ${esc(p.added_by)} se lo recomienda a <b>${esc(p.person)}</b>`} desde el ${esc(fmtDate(p.created_at))}.</p><p class="dx-hint">${p.in_home ? `Está en casa${p.owners?.length ? `: es de ${esc(p.owners.join(' y '))}` : ''}.` : 'No está en la colección de casa.'}</p>${p.source_url ? `<p><a class="dx-link" href="${esc(p.source_url)}" target="_blank" rel="noopener noreferrer">🔗 Ver la edición en ${esc(p.source || 'internet')}</a></p>` : ''}</div></div>`,
       buttons: [
+        { label: '▶️ Escuchar en Spotify', value: 'spotify', kind: 'spotify' },
         { label: '🎧 Ya lo he escuchado', value: 'done', kind: 'mint' },
         ...(d && openAlbumSafe() ? [{ label: '💿 Ver el disco', value: 'see', kind: 'coral' }] : []),
         { label: '🗑 Quitar de la lista', value: 'rm', kind: 'soft' },
         { label: 'Cancelar', value: null }
       ]
     });
+    if (choice === 'spotify') return playOnSpotify(p, spotifyJob);
     if (choice === 'see') { const fn = openAlbumSafe(); if (fn && d) fn(d, true); return; }
     if (choice === 'rm' && !(await confirmBox('Quitar de la lista', `¿Quitar «${p.album}» de los álbumes pendientes de ${p.person}?`, 'Quitar'))) return;
     if (choice === 'done' || choice === 'rm') {
@@ -762,6 +859,6 @@
     injectStyles();
     bind();
   }
-  window.HogarDiscosExtra = { refresh, discKey };
+  window.HogarDiscosExtra = { refresh, discKey, findSpotify };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

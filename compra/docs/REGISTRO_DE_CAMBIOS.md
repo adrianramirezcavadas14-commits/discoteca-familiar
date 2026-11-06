@@ -1,5 +1,10 @@
 # Registro de archivos modificados y añadidos
 
+## Versión 16 · 06/11/2026
+
+- **Novedades del buzón**: cuando se acepta una sugerencia, a cada dispositivo le sale en primer plano al entrar (en Hogar, la biblioteca o la despensa) hasta que pulsa «¡Entendido!»; no vuelve a salir hasta que se acepte otra. Quien la acepta no la ve como novedad. Un dispositivo nuevo solo ve la última. `buzon.js` (ahora también cargado en `libros/index.html` y `compra/index.html`), `index.html`, `service-worker.js` (caché `hogar-v16-20261106`). Sin SQL nuevo.
+- **Discoteca · Álbumes pendientes**: botón «▶️ Escuchar en Spotify» en cada álbum. Sin claves: Deezer encuentra el álbum y su primera canción y song.link da el enlace de Spotify; se abre esa canción dentro del álbum (en el móvil, en la app). Si no lo encuentra, abre la búsqueda de Spotify. `discos-extra.js`.
+
 ## Versión 15 · 06/11/2026
 
 - **Discoteca · Álbumes pendientes**: «🌍 Buscar en internet» (y desde «De casa» cuando no está) busca en MusicBrainz y Discogs y muestra las ediciones con portada, año, país, formato y sello; la elegida se guarda con su portada y enlace. Portadas más grandes en la lista y en el detalle. `discos-extra.js`, columnas nuevas en `sql/discos_prestamos_y_pendientes.sql`.
