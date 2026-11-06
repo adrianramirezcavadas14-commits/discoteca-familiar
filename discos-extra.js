@@ -690,11 +690,30 @@
     const m = String(sp?.url || '').match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(album|track)\/([A-Za-z0-9]+)/);
     return m ? { type: m[1], id: m[2] } : null;
   }
+  let officialState = 'unknown';   // 'unknown' | 'ok' | 'missing'
+  async function spotifyOfficial(artist, album) {
+    if (officialState === 'missing') return null;
+    try {
+      const cfg = await loadConfig();
+      const res = await timed(`${cfg.url}/functions/v1/spotify-buscar`, { method: 'POST', headers: { apikey: cfg.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ artist, album }) }, 10000);
+      if (res.status === 404) { officialState = 'missing'; return null; }
+      const js = await res.json().catch(() => null);
+      if (js?.code === 'sin_configurar') { officialState = 'missing'; console.warn('[Discoteca] Spotify:', js.message); return null; }
+      if (!js?.ok) { if (js?.message) console.warn('[Discoteca] Spotify:', js.message); return js?.code === 'no_encontrado' ? { notFound: true } : null; }
+      officialState = 'ok';
+      return { albumId: js.albumId, trackId: js.trackId, title: js.albumName, firstTrack: js.trackName || '' };
+    } catch (e) { console.warn('[Discoteca] Spotify (función):', e?.message || e); return null; }
+  }
   const cleanTitle = (t) => nrm(t).replace(/\s*[([].*?[)\]]\s*/g, ' ').replace(/\b(deluxe|remaster(ed)?|edition|edicion|version|expanded)\b/g, ' ').replace(/[^a-z0-9ñ ]/g, ' ').replace(/\s+/g, ' ').trim();
   async function findSpotify(artist, album) {
     const key = spKey(artist, album);
     if (spotifyCache.has(key)) return spotifyCache.get(key);
     const job = (async () => {
+      // 1) Función de Supabase con la API oficial de Spotify (la más fiable, si está desplegada).
+      const official = await spotifyOfficial(artist, album);
+      if (official?.notFound) return null;
+      if (official) return official;
+      // 2) Sin la función: Deezer + song.link.
       const tries = artist ? [`artist:"${artist}" album:"${album}"`, `${artist} ${album}`] : [album];
       let hit = null;
       for (const q of tries) {

@@ -1,0 +1,17 @@
+project_id = "hogar-despensa"
+
+# Configuración mínima de Supabase CLI para las funciones de la despensa.
+# Ejecuta los comandos de despliegue desde la carpeta «compra/».
+# La clave familiar se valida dentro de cada función, por eso no se exige JWT.
+[functions.compra-sync]
+verify_jwt = false
+
+[functions.compra-tickets]
+verify_jwt = false
+
+[functions.compra-recetas]
+verify_jwt = false
+
+# Discoteca: busca el álbum en Spotify (necesita SPOTIFY_CLIENT_ID y SPOTIFY_CLIENT_SECRET como secretos).
+[functions.spotify-buscar]
+verify_jwt = false
