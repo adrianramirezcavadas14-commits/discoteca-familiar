@@ -148,6 +148,7 @@
 .dx-btn.soft{background:#fff1ee;color:#a2412f}
 .dx-btn.grey{background:#eef0f4;color:var(--ink)}
 .dx-btn.spotify{background:#1db954;color:#fff}
+#modal .detail-recommend{background:#fde8f1;box-shadow:inset 0 0 0 1px #f3b9d2;font-size:18px;color:inherit}
 #dxDialog .dx-dlg-actions .dx-btn.spotify{flex:1 1 100%;font-size:17px}
 .dx-btn:disabled{opacity:.5;cursor:default}
 .dx-sub{margin:26px 0 12px;font-size:20px;display:flex;align-items:center;gap:8px}
@@ -269,6 +270,29 @@
       <div class="scan-modal" id="dxName" role="dialog" aria-modal="true" aria-labelledby="dxNameTitle"><div class="edition-box"><button type="button" class="scan-close" data-dx-close>Cerrar</button><h2 id="dxNameTitle">¿Quién?</h2><p id="dxNameHint"></p><div class="dx-bookline" id="dxNameDisc"></div><h3>De la familia</h3><div class="dx-chips" id="dxNameFam"></div><div id="dxNameSavedWrap" hidden><h3>Otras personas</h3><div class="dx-chips" id="dxNameSaved"></div></div><form class="dx-form" id="dxNameForm" novalidate><input id="dxNameInput" maxlength="60" autocomplete="off" enterkeyhint="done" placeholder="O escribe otro nombre…" aria-label="Otro nombre"><button type="submit" class="dx-btn">Usar este nombre</button></form><p class="dx-err" id="dxNameErr" role="alert"></p></div></div>
       <div class="scan-modal" id="dxDialog" role="dialog" aria-modal="true" aria-labelledby="dxDlgTitle"><div class="edition-box"><h2 id="dxDlgTitle"></h2><div id="dxDlgBody"></div><div class="dx-dlg-actions" id="dxDlgActions"></div></div></div>`);
     return true;
+  }
+
+  /* ---------- Recomendar desde la ficha del disco ---------- */
+  function addRecommendButton() {
+    const box = $('#modal .detail-actions');
+    if (!box || box.querySelector('.detail-recommend')) return;
+    box.insertAdjacentHTML('afterbegin', '<button class="ico detail-recommend" type="button" aria-label="Recomendar a alguien" title="Recomendar a alguien">💌</button>');
+    box.querySelector('.detail-recommend').addEventListener('click', recommendFromDetail);
+  }
+  async function recommendFromDetail() {
+    let d = null;
+    // eslint-disable-next-line no-undef
+    try { d = discs()[currentAlbumIndex] || null; } catch { d = null; }
+    if (!d) return;
+    $('#modal')?.classList.remove('open');
+    if (!st.people.length && !st.missing) refresh(['people', 'pending']);
+    const person = await dialog({ title: '💌 ¿A quién se lo recomiendas?', html: `<p>«${esc(d.album || 'Sin título')}» · ${esc(d.artist || '')}</p>`, buttons: [...FAM.map((p) => ({ label: p, value: p, kind: 'coral' })), { label: 'Cancelar', value: null }] });
+    if (!person) return;
+    st.pendPerson = person;
+    st.more = false;
+    const before = st.pending.length;
+    await addPending(snapshot(d), person, true, '¿Quién lo recomienda?');
+    if (st.pending.length > before || st.pending.some((p) => p.disc_key === discKey(d) && p.person === person)) showMyPage('discPending');
   }
 
   function showMyPage(id) {
@@ -513,10 +537,10 @@
   }
 
   /* ---------- Álbumes pendientes ---------- */
-  async function addPending(snap, person, inHome) {
+  async function addPending(snap, person, inHome, askTitle = '¿Quién lo apunta?') {
     if (st.pending.some((p) => p.disc_key === snap.disc_key && p.person === person)) { toast(`Ese álbum ya está en la lista de ${person}`); return; }
     close($('#dxPick'));
-    const by = await askName({ title: '¿Quién lo apunta?', hint: `Si lo apunta ${person}, queda como pendiente suyo; si es otra persona, como recomendación para ${person}.`, disc: `${snap.album} · ${snap.artist}` });
+    const by = await askName({ title: askTitle, hint: `Si lo apunta ${person}, queda como pendiente suyo; si es otra persona, como recomendación para ${person}.`, disc: `${snap.album} · ${snap.artist}` });
     if (!by) return;
     try {
       await insertWithExtras(TB.pending, { id: uuid(), person, ...snap, in_home: inHome, added_by: by });
@@ -877,6 +901,7 @@
     if (!build()) return;
     injectStyles();
     bind();
+    addRecommendButton();
     // Desde un aviso: index.html?abrir=discLoans o ?abrir=discPending
     const abrir = new URLSearchParams(location.search).get('abrir');
     if (abrir === 'discLoans' || abrir === 'discPending') {

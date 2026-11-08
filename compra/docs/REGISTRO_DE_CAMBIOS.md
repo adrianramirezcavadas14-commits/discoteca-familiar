@@ -1,5 +1,9 @@
 # Registro de archivos modificados y añadidos
 
+## Versión 19 · 08/11/2026
+
+- **Recomendar desde la ficha**: botón 💌 junto a editar y eliminar en la ficha de cada disco y de cada libro (en los libros, junto a calendario y valorar; los botones bajan de línea si no caben). Pregunta a quién y quién lo recomienda, lo guarda y abre «Álbumes pendientes» o «Aventuras pendientes» de esa persona. `discos-extra.js`, `libros/app.js`, `libros/index.html`, `libros/styles.css`, `service-worker.js` (caché `hogar-v19-20261108`).
+
 ## Versión 18 · 06/11/2026
 
 - **Usuario de Hogar** (`hogar-user.js`, en la discoteca, la biblioteca y la despensa): al entrar se elige Papá, Mamá, María, Adrián o Invitado; icono del perfil arriba a la derecha (cambiar de usuario, cerrar sesión, probar un aviso). La familia tiene que permitir los avisos para entrar; Invitado no recibe avisos.

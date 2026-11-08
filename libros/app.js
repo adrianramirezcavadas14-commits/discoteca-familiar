@@ -1098,6 +1098,7 @@
     $('#bmDelete').addEventListener('click', () => deleteBook(S.detailId));
     $('#bmRate').addEventListener('click', () => goRate(S.detailId));
     $('#bmCalendar').addEventListener('click', () => startCalendarPick(S.detailId));
+    $('#bmRecommend').addEventListener('click', () => recommendFromDetail(S.detailId));
   }
 
   /* ---------- Eliminación protegida (contraseña 1354, como la discoteca) ---------- */
@@ -3501,6 +3502,29 @@
     if (!by) return;
     const b = await bookForResult(r, prepare, MSG.rec);
     if (b) await addRec(b.id, person, by);
+  }
+
+  /** Desde la ficha del libro: a quién se le recomienda y quién lo recomienda; luego se ve en su lista. */
+  async function recommendFromDetail(bookId) {
+    const b = bookById(bookId);
+    if (!b) return;
+    if (S.missing.has(T.recs)) { toast('Falta preparar las recomendaciones en Supabase.', 4000); return; }
+    closeModal($('#bookModal'));
+    const res = await dialog({
+      title: '💌 ¿A quién se lo recomiendas?',
+      message: `«${b.title}»`,
+      buttons: [...FAMILY.map((p) => ({ label: p, value: p, kind: 'primary' })), { label: 'Cancelar', value: null }]
+    });
+    const person = res.value;
+    if (!person) return;
+    if (recFor(b.id, person)) { toast(`Ese libro ya está en las recomendaciones de ${person}`); return; }
+    const by = await askRecommender(person, b.title);
+    if (!by) return;
+    if (await addRec(b.id, person, by)) {
+      S.pendPerson = person;
+      S.pendMore = {};
+      showPage('pending');
+    }
   }
 
   async function openRec(id) {

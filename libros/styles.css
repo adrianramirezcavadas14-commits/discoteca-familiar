@@ -922,3 +922,11 @@ button.leg:hover { background: #efe8dc; }
 /* ====== v15 · Buscar en internet desde «De casa» ====== */
 .pick-web { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px; }
 .pick-web .add-btn { width: 100%; justify-content: center; }
+
+/* ====== v19 · Recomendar desde la ficha del libro ====== */
+.recbtn { background: #fde8f1; box-shadow: inset 0 0 0 1px #f3b9d2; font-size: 19px; }
+.artist-actions { flex-wrap: wrap; }
+.detail-actions { flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 760px) {
+  .artist-actions .detail-actions { width: 100%; justify-content: flex-start; }
+}

@@ -12,7 +12,7 @@
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="icon" href="../icons/icon-192.png">
 <link rel="apple-touch-icon" href="../icons/icon-192.png">
-<link rel="stylesheet" href="./styles.css?v=15">
+<link rel="stylesheet" href="./styles.css?v=16">
 </head>
 <body>
 
@@ -247,6 +247,7 @@
         <div class="detail-actions">
           <button class="ico edit" type="button" id="bmEdit" aria-label="Editar" title="Editar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></button>
           <button class="ico del" type="button" id="bmDelete" aria-label="Eliminar" title="Eliminar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14M10 10v6m4-6v6"/></svg></button>
+          <button class="ico recbtn" type="button" id="bmRecommend" aria-label="Recomendar a alguien" title="Recomendar a alguien">💌</button>
           <button class="ico calbtn" type="button" id="bmCalendar" aria-label="Apuntar en Mi ruta de lectura" title="Apuntar en Mi ruta de lectura">📅</button>
           <button class="ico rate" type="button" id="bmRate" aria-label="Valorar" title="Valorar"><svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5L2.6 9.4l6.5-.9z" fill="#f5b400" stroke="#d99a00" stroke-width="1.2" stroke-linejoin="round"/></svg></button>
         </div>
@@ -462,7 +463,7 @@
 
 <!-- Supabase y el lector de códigos se cargan desde app.js (con CDN alternativo y tiempo máximo) para que la pantalla de carga nunca se quede en 0 %. -->
 <script defer src="./supabase-config.js"></script>
-<script defer src="./app.js?v=16"></script>
+<script defer src="./app.js?v=17"></script>
 <script>
   // Red de seguridad: si app.js no llega a arrancar (sin cobertura), se ofrece recargar en vez de quedarse en 0 %.
   setTimeout(function () {
