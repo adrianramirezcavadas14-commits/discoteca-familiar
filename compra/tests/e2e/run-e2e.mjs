@@ -590,6 +590,30 @@ try {
     }
   });
 
+  await step('Botón atrás en la despensa: vuelve a la pantalla anterior y avisa antes de salir', async () => {
+    const c = await newContext({ width: 390, height: 800 });
+    const p = await c.newPage();
+    watch(p, 'atrás');
+    await p.addInitScript((k) => { localStorage.setItem('despensaClaveFamiliar', k); }, stack.familyKey);
+    await p.goto(`${stack.webBase}/compra/`);
+    await p.waitForSelector('#page-inicio.active .home-card', { timeout: 30000 });
+    await p.waitForTimeout(300);
+    await p.click('#page-inicio a[href="#lista"]');
+    await p.waitForSelector('#page-lista.active');
+    await p.click('#open');
+    await p.waitForSelector('#drawer.open');
+    await p.evaluate(() => history.back());
+    await p.waitForSelector('#drawer:not(.open)', { state: 'attached' });
+    assert.ok(await p.locator('#page-lista.active').count(), 'atrás cierra el menú sin cambiar de pantalla');
+    await p.evaluate(() => history.back());
+    await p.waitForSelector('#page-inicio.active');
+    await p.evaluate(() => history.back());
+    await p.waitForFunction(() => getComputedStyle(document.querySelector('#hbExit') || document.body).opacity === '1' && !!document.querySelector('#hbExit'));
+    assert.match(await p.textContent('#hbExit'), /salir de la despensa/);
+    assert.ok(await p.locator('#page-inicio.active').count());
+    await c.close();
+  });
+
   await step('La discoteca y la biblioteca siguen abriendo', async () => {
     const c = await newContext({ width: 1280, height: 900 });
     const p = await c.newPage();

@@ -4,7 +4,7 @@
    Todo lo que se puede querer cambiar sin tocar la lógica está aquí.
    ===================================================================== */
 
-export const APP_VERSION = '1.4 · 06/11/2026';
+export const APP_VERSION = '1.5 · 10/11/2026';
 
 /* Pantallas de carga: para cambiar un GIF basta con subir el archivo a
    la carpeta compra/ y escribir aquí su nombre. No aparecen en ningún otro sitio. */

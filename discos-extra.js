@@ -148,6 +148,27 @@
 .dx-btn.soft{background:#fff1ee;color:#a2412f}
 .dx-btn.grey{background:#eef0f4;color:var(--ink)}
 .dx-btn.spotify{background:#1db954;color:#fff}
+.dxh-alert{display:block;width:100%;margin-top:16px;border:0;border-radius:16px;padding:14px 16px;background:#efeafe;color:#4b3f8f;font:inherit;font-weight:900;text-align:left;box-shadow:inset 0 0 0 1px #d8cff7;cursor:pointer}
+.dxh-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:18px}
+.dxh-card{display:flex;flex-direction:column;gap:8px;background:#fff;border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:var(--shadow);min-width:0}
+.dxh-card.hot{box-shadow:var(--shadow),inset 0 0 0 2px #9a8fd1}
+.dxh-card h3{margin:4px 0 0;font-size:18px}
+.dxh-card .dx-hint{margin:0}
+.dxh-ico{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:24px;background:#fff4db}
+.dxh-big{font-size:26px;font-weight:950;line-height:1.1}
+.dxh-go{margin-top:auto;align-self:flex-start}
+.dxh-owners{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px 12px;font-size:14px}
+.dxh-owners li{display:flex;align-items:center;gap:6px}
+.dxh-owners i{width:10px;height:10px;border-radius:4px}
+.dxh-latest{margin-top:22px}
+.dxh-latest h3{margin:0 0 10px;font-size:18px}
+.dxh-covers{display:grid;grid-auto-flow:column;grid-auto-columns:120px;gap:12px;overflow-x:auto;padding:2px 2px 10px;scroll-snap-type:x proximity}
+.dxh-cover{display:grid;gap:3px;border:0;background:transparent;padding:0;text-align:left;color:var(--ink);font:inherit;cursor:pointer;scroll-snap-align:start;min-width:0}
+.dxh-cover .dx-thumb{width:120px;height:120px;box-shadow:0 6px 16px #4b3b2626}
+.dxh-cover b,.dxh-cover span{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dxh-cover span{color:var(--muted)}
+@media(max-width:980px){.dxh-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.dxh-grid{grid-template-columns:1fr;gap:12px}.dxh-covers{grid-auto-columns:100px}.dxh-cover .dx-thumb{width:100px;height:100px}}
 #modal .detail-recommend{background:#fde8f1;box-shadow:inset 0 0 0 1px #f3b9d2;font-size:18px;color:inherit}
 #dxDialog .dx-dlg-actions .dx-btn.spotify{flex:1 1 100%;font-size:17px}
 .dx-btn:disabled{opacity:.5;cursor:default}
@@ -253,6 +274,10 @@
     const sw = $('#switchApplication');
     const main = $('main.wrap');
     if (!sw || !main || $('#discLoans')) return false;
+    // Inicio: primera sección del menú
+    const firstNav = document.querySelector('#drawer .navbtn');
+    firstNav?.insertAdjacentHTML('beforebegin', '<button class="navbtn" type="button" data-page="discHome" data-dx-nav><span class="nicon">🏠</span><span><b>Inicio</b><small>La colección de un vistazo</small></span></button>');
+    main.insertAdjacentHTML('afterbegin', '<section class="page" id="discHome"><div class="hero"><div><h2 id="dxHomeHello">La colección de un vistazo</h2><p>Lo que toca escuchar, los discos de viaje y todo lo demás, a un toque.</p></div></div><div id="dxHomeGrid"></div></section>');
     sw.insertAdjacentHTML('beforebegin', `<button class="navbtn" type="button" data-page="discLoans" data-dx-nav><span class="nicon">🤝</span><span><b>Discos de viaje</b><small>Préstamos y solicitudes de discos</small></span></button><button class="navbtn" type="button" data-page="discPending" data-dx-nav><span class="nicon">🎧</span><span><b>Álbumes pendientes</b><small>Lo que toca escuchar y lo que te recomiendan</small></span></button>`);
     main.insertAdjacentHTML('beforeend', `<section class="page" id="discLoans"><div class="hero"><div><h2>Discos de viaje</h2><p>Los discos de casa que están de viaje: de quién son, a quién se han prestado y desde cuándo. Y si quieres uno de otra persona, pídeselo aquí.</p></div><div class="dx-btns"><button type="button" class="dx-btn alt" id="dxAskBtn">🙋 Pedir un disco</button><button type="button" class="dx-btn" id="dxLendBtn">🤝 Prestar un disco</button></div></div>
       <div id="dxLoansNote"></div>
@@ -303,7 +328,7 @@
     paint();
     refresh();
   }
-  const activePage = () => $('#discLoans.active') ? 'discLoans' : $('#discPending.active') ? 'discPending' : null;
+  const activePage = () => $('#discLoans.active') ? 'discLoans' : $('#discPending.active') ? 'discPending' : $('#discHome.active') ? 'discHome' : null;
 
   /* ---------- Ventanas ---------- */
   const open = (el) => el.classList.add('open');
@@ -387,8 +412,45 @@
 
   function paint() {
     const page = activePage();
+    if (page === 'discHome') paintHome();
     if (page === 'discLoans') paintLoans();
     if (page === 'discPending') paintPending();
+  }
+
+  /* ---------- Inicio ---------- */
+  function hogarUser() { try { return window.HogarUser?.get?.() || ''; } catch { return ''; } }
+  function paintHome() {
+    const box = $('#dxHomeGrid');
+    if (!box) return;
+    const name = hogarUser();
+    const me = FAM.includes(name) ? name : null;
+    $('#dxHomeHello').textContent = name && name !== 'Invitado' ? `¡Hola, ${name}!` : 'La colección de un vistazo';
+    const all = discs();
+    const byCat = {};
+    all.forEach((d) => { const c = d.category || 'Otros'; byCat[c] = (byCat[c] || 0) + 1; });
+    const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([c, n]) => `${esc(c)} <b>${n}</b>`).join(' · ');
+    const artists = new Set(all.map((d) => nrm(d.artist)).filter(Boolean)).size;
+    const mineDiscs = me ? all.filter((d) => ownersOf(d).includes(me)).length : 0;
+    const pend = me ? st.pending.filter((p) => p.person === me) : st.pending;
+    const own = pend.filter((p) => p.added_by === p.person).length;
+    const recs = pend.length - own;
+    const reqsMine = me ? st.requests.filter((r) => r.owner === me).length : 0;
+    const byOwner = FAM.map((o) => [o, all.filter((d) => ownersOf(d).includes(o)).length]).filter(([, n]) => n);
+    const latest = all.filter((d) => d.addedAt).slice().sort((a, b) => String(b.addedAt).localeCompare(String(a.addedAt))).slice(0, 10);
+    const card = (o) => `<article class="dxh-card${o.hot ? ' hot' : ''}"><div class="dxh-ico" aria-hidden="true">${o.icon}</div><h3>${esc(o.title)}</h3>${o.big != null ? `<div class="dxh-big">${esc(o.big)}</div>` : ''}${o.body || ''}<button type="button" class="dx-btn ${o.primary ? 'coral' : 'grey'} dxh-go" data-dx-home-go="${esc(o.go)}">${esc(o.btn)}</button></article>`;
+    const next = pend.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))[0];
+    box.innerHTML = `
+      ${reqsMine ? `<button type="button" class="dxh-alert" data-dx-home-go="discLoans">🙋 ${reqsMine === 1 ? 'Alguien te pide un disco' : `${reqsMine} solicitudes de préstamo esperan tu respuesta`} · Ver</button>` : ''}
+      <div class="dxh-grid">
+        ${card({ icon: '💿', title: 'Explorar la colección', big: plural(all.length, 'disco', 'discos'), body: `<p class="dx-hint">${cats || '—'}</p><p class="dx-hint">${plural(artists, 'artista', 'artistas')}${me ? ` · ${mineDiscs} tuyos` : ''}</p>`, btn: 'Buscar un disco', go: 'search', primary: true })}
+        ${card({ icon: '🎧', title: 'Álbumes pendientes', big: String(pend.length), body: `<p class="dx-hint">${me ? `Tuyos: <b>${own}</b> · Te recomiendan: <b>${recs}</b>` : `${own} propios · ${recs} recomendaciones en total`}</p>${next ? `<p class="dx-hint">Siguiente: «${esc(next.album)}»${next.artist ? ` · ${esc(next.artist)}` : ''}</p>` : ''}`, btn: 'Ver la lista', go: 'discPending' })}
+        ${card({ icon: '🤝', title: 'Discos de viaje', big: st.loans.length ? plural(st.loans.length, 'prestado', 'prestados') : 'Todos en casa', hot: reqsMine > 0, body: `<p class="dx-hint">${st.requests.length ? `🙋 ${plural(st.requests.length, 'solicitud', 'solicitudes')}${reqsMine ? ` · <b>${reqsMine} para ti</b>` : ''}` : 'Ninguna solicitud de préstamo.'}</p>`, btn: 'Préstamos y solicitudes', go: 'discLoans' })}
+        ${card({ icon: '✨', title: 'Discos soñados', body: '<p class="dx-hint">Lo que a cada uno le gustaría tener: ideas para comprar o regalar.</p>', btn: 'Ver los deseos', go: 'wishlist' })}
+        ${card({ icon: '🎲', title: '¿Qué ponemos hoy?', body: '<p class="dx-hint">Redescubre algo que ni recordabas tener.</p>', btn: 'Sorpréndeme', go: 'recommend' })}
+        ${card({ icon: '🏆', title: 'El rincón de los números', body: `<ul class="dxh-owners">${byOwner.map(([o, n]) => `<li><i style="background:${esc(colorOf(o))}"></i>${esc(o)} <b>${n}</b></li>`).join('')}</ul>`, btn: 'Ver los números', go: 'stats' })}
+        ${card({ icon: '➕', title: 'Sumar un disco', body: '<p class="dx-hint">Escanea el código de barras o búscalo en Discogs.</p>', btn: 'Añadir un disco', go: 'add' })}
+      </div>
+      ${latest.length ? `<section class="dxh-latest"><h3>🆕 Los últimos en llegar</h3><div class="dxh-covers">${latest.map((d) => `<button type="button" class="dxh-cover" data-dx-home-disc="${esc(discKey(d))}" title="${esc(d.album)}">${thumb(d.cover, d.album, '', 'big')}<b>${esc(d.album || 'Sin título')}</b><span>${esc(d.artist || '')}</span></button>`).join('')}</div></section>` : ''}`;
   }
 
   function paintLoans() {
@@ -843,6 +905,22 @@
       const op = t.closest('[data-dx-open]');
       if (op) { const d = discByKey(op.dataset.dxOpen); const fn = openAlbumSafe(); if (d && fn) fn(d, true); else toast('Ese disco ya no está tal cual en la colección.'); }
     });
+    $('#discHome').addEventListener('click', (e) => {
+      const go = e.target.closest('[data-dx-home-go]');
+      if (go) {
+        const id = go.dataset.dxHomeGo;
+        if (id === 'discPending' && FAM.includes(hogarUser())) { st.pendPerson = hogarUser(); st.more = false; }
+        if (id === 'discLoans' || id === 'discPending') { showMyPage(id); return; }
+        document.querySelector(`#drawer .navbtn[data-page="${id}"]`)?.click();
+        return;
+      }
+      const dd = e.target.closest('[data-dx-home-disc]');
+      if (dd) { const d = discByKey(dd.dataset.dxHomeDisc); const fn = openAlbumSafe(); if (d && fn) fn(d); }
+    });
+    // Cuando cambia la colección (por ejemplo, al descargarla), se repinta el inicio.
+    const count = $('#count');
+    if (count) new MutationObserver(() => { if (activePage() === 'discHome') paintHome(); }).observe(count, { childList: true, characterData: true, subtree: true });
+    window.addEventListener('hogar-user', () => { if (activePage() === 'discHome') paintHome(); });
     $('#discPending').addEventListener('click', (e) => {
       const t = e.target;
       if (t.closest('[data-dx-retry]')) return refresh();
@@ -902,6 +980,26 @@
     injectStyles();
     bind();
     addRecommendButton();
+    // La discoteca se abre en «Inicio».
+    document.querySelectorAll('.navbtn').forEach((x) => x.classList.toggle('active', x.dataset.page === 'discHome'));
+    document.querySelectorAll('main.wrap > .page').forEach((x) => x.classList.toggle('active', x.id === 'discHome'));
+    paintHome();
+    refresh();
+    // Al entrar desde el menú de Hogar, se empieza siempre por el inicio de la discoteca.
+    $('#enterDiscs')?.addEventListener('click', () => { if (!new URLSearchParams(location.search).get('abrir')) showMyPage('discHome'); });
+    // Botón «atrás» del móvil: la pantalla «hogar» es el menú de Hogar (discoteca, biblioteca, despensa).
+    const picker = $('#homePicker');
+    const startBack = () => window.HogarBack?.init({
+      appName: 'Hogar',
+      getPage: () => (picker && !picker.hidden ? 'hogar' : (document.querySelector('main.wrap > .page.active')?.id || 'discHome')),
+      showPage: (id) => {
+        if (id === 'hogar') { if (picker) { picker.hidden = false; window.scrollTo(0, 0); } return; }
+        if (picker && !picker.hidden) $('#enterDiscs')?.click();
+        if (['discHome', 'discLoans', 'discPending'].includes(id)) showMyPage(id);
+        else document.querySelector(`#drawer .navbtn[data-page="${id}"]`)?.click();
+      }
+    });
+    if (window.HogarBack) startBack(); else window.addEventListener('load', startBack, { once: true });
     // Desde un aviso: index.html?abrir=discLoans o ?abrir=discPending
     const abrir = new URLSearchParams(location.search).get('abrir');
     if (abrir === 'discLoans' || abrir === 'discPending') {

@@ -362,7 +362,7 @@
     missing: new Set(),
     books: [], ratings: [], wishes: [], journeys: [], sessions: [], pending: [], loans: [], recs: [], people: [], requests: [],
     bookMap: new Map(),
-    page: 'search',
+    page: 'home',
     search: { q: '', owner: null, format: null, location: null, page: 1, filtered: [], highlight: null, sort: readBookSort() },
     form: { mode: 'new', editId: null, returnPage: 'search', wishId: null, owners: new Set(), location: null, format: null, meta: {}, cover: { url: '', path: null, blob: null, preview: '' }, choices: [] },
     detailId: null,
@@ -780,6 +780,7 @@
   const setMenu = (open) => drawer.classList.toggle('open', open);
 
   const PAGE_RENDER = {
+    home: () => renderHome(),
     search: () => { applySearch(true); fitFilterRow(); },
     recommend: () => renderRecommendGenres(),
     wishlist: () => renderWishlist(),
@@ -810,6 +811,79 @@
     if ($('#dayModal').classList.contains('open')) renderDayRecords();
     saveCache();
   }, 60);
+
+  /* =================================================================
+     5 b. INICIO: la biblioteca de un vistazo
+     ================================================================= */
+  function homeUser() {
+    try { const u = window.HogarUser?.get?.(); return FAMILY.includes(u) ? u : null; } catch { return null; }
+  }
+  function renderHome() {
+    const box = $('#homeGrid');
+    if (!box) return;
+    const me = homeUser();
+    const anyName = (() => { try { return window.HogarUser?.get?.() || ''; } catch { return ''; } })();
+    $('#homeHello').textContent = anyName && anyName !== 'Invitado' ? `¡Hola, ${anyName}!` : 'La biblioteca de un vistazo';
+    const books = homeBooks();
+    const authors = new Set(books.flatMap((b) => b.authors || []).map(norm).filter(Boolean)).size;
+    const genres = new Set(books.flatMap((b) => b.genres || []).map(norm).filter(Boolean)).size;
+    // Leyendo ahora: ciclos abiertos con alguna página apuntada
+    const reading = S.journeys.map(journeyInfo).filter((j) => !j.empty && !j.finished && bookById(j.bookId))
+      .sort((a, b) => String(b.lastDate).localeCompare(String(a.lastDate)));
+    const year = String(new Date().getFullYear());
+    const finishedYear = S.journeys.map(journeyInfo).filter((j) => j.finished && String(j.finishedOn).startsWith(year)).length;
+    const pendMine = me ? S.pending.filter((p) => p.person === me && bookById(p.book_id)).length : S.pending.length;
+    const recsMine = me ? S.recs.filter((r) => r.person === me && bookById(r.book_id)).length : S.recs.length;
+    const loans = S.loans.filter((l) => bookById(l.book_id));
+    const reqs = S.requests.filter((r) => bookById(r.book_id));
+    const reqsMine = me ? reqs.filter((r) => r.owner === me).length : 0;
+    const wishesMine = me ? S.wishes.filter((w) => w.person === me).length : S.wishes.length;
+    const myRatings = (me ? S.ratings.filter((r) => r.person === me) : S.ratings).filter((r) => bookById(r.book_id))
+      .sort((a, b) => String(b.updated_at || b.created_at).localeCompare(String(a.updated_at || a.created_at)));
+    const lastRated = myRatings[0];
+    const latest = books.slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).slice(0, 8);
+    const card = (o) => `<article class="lh-card${o.hot ? ' hot' : ''}">
+        <div class="lh-ico" aria-hidden="true">${o.icon}</div>
+        <h3>${esc(o.title)}</h3>
+        ${o.big != null ? `<div class="lh-big">${esc(o.big)}</div>` : ''}
+        ${o.body || ''}
+        <button type="button" class="lh-btn${o.primary ? ' primary' : ''}" data-home-go="${esc(o.go)}"${o.person ? ` data-home-person="${esc(o.person)}"` : ''}>${esc(o.btn)}</button>
+      </article>`;
+    const readingList = reading.slice(0, 3).map((j) => {
+      const b = bookById(j.bookId);
+      return `<li><i style="background:${esc(colorOf(j.person))}"></i><span><b>${esc(j.person)}</b> · «${esc(b.title)}»${j.lastPage ? ` · pág. ${esc(j.lastPage)}` : ''}</span></li>`;
+    }).join('');
+    box.innerHTML = `
+      ${reqsMine ? `<button type="button" class="lh-alert" data-home-go="loans">🙋 ${plural(reqsMine, 'persona te pide un libro', 'solicitudes de préstamo esperan tu respuesta')} · Ver</button>` : ''}
+      <div class="lh-grid">
+        ${card({ icon: '🔎', title: 'Explorar la biblioteca', big: plural(books.length, 'libro', 'libros'), body: `<p class="lh-muted">${plural(authors, 'autor', 'autores')} · ${plural(genres, 'género', 'géneros')}</p>`, btn: 'Buscar un libro', go: 'search', primary: true })}
+        ${card({ icon: '📖', title: 'Leyendo ahora', big: reading.length ? plural(reading.length, 'lectura', 'lecturas') : null, body: reading.length ? `<ul class="lh-list">${readingList}</ul>${reading.length > 3 ? `<p class="lh-muted">y ${reading.length - 3} más</p>` : ''}` : '<p class="lh-muted">Nadie tiene un libro empezado. ¡Buen momento para elegir uno!</p>', btn: 'Mi ruta de lectura', go: 'calendar' })}
+        ${card({ icon: '🔖', title: 'Aventuras pendientes', big: String(pendMine + recsMine), body: `<p class="lh-muted">${me ? `Tus pendientes: <b>${pendMine}</b> · Te recomiendan: <b>${recsMine}</b>` : `${plural(pendMine, 'pendiente', 'pendientes')} · ${plural(recsMine, 'recomendación', 'recomendaciones')} en total`}</p>`, btn: 'Ver la lista', go: 'pending', person: me || '' })}
+        ${card({ icon: '🤝', title: 'Libros de viaje', big: loans.length ? plural(loans.length, 'prestado', 'prestados') : 'Todos en casa', hot: reqsMine > 0, body: `<p class="lh-muted">${reqs.length ? `🙋 ${plural(reqs.length, 'solicitud', 'solicitudes')} de préstamo${reqsMine ? ` · <b>${reqsMine} para ti</b>` : ''}` : 'Ninguna solicitud de préstamo.'}</p>`, btn: 'Préstamos y solicitudes', go: 'loans' })}
+        ${card({ icon: '✨', title: 'Libros soñados', big: String(wishesMine), body: `<p class="lh-muted">${me ? 'en tu lista de deseos' : 'deseos en total'}</p>`, btn: 'Ver los deseos', go: 'wishlist' })}
+        ${card({ icon: '⭐', title: 'Califica tu viaje', big: String(myRatings.length), body: `<p class="lh-muted">${lastRated ? `Última: «${esc(bookById(lastRated.book_id).title)}» ${starsHtml(Number(lastRated.rating))}` : me ? 'Todavía no has valorado ningún libro.' : 'valoraciones en total'}</p>`, btn: 'Valorar lecturas', go: 'ratings' })}
+        ${card({ icon: '🎲', title: '¿Qué leemos hoy?', body: '<p class="lh-muted">Deja que la biblioteca te sorprenda con un libro de casa.</p>', btn: 'Sorpréndeme', go: 'recommend' })}
+        ${card({ icon: '➕', title: 'Sumar un libro', body: '<p class="lh-muted">Escanea el código de barras o búscalo por título.</p>', btn: 'Añadir un libro', go: 'add' })}
+        ${card({ icon: '🏆', title: 'El rincón de los números', big: finishedYear ? plural(finishedYear, 'libro terminado', 'libros terminados') : null, body: `<p class="lh-muted">${finishedYear ? `en ${year}` : 'Curiosidades de nuestras lecturas.'}</p>`, btn: 'Ver los números', go: 'stats' })}
+      </div>
+      ${latest.length ? `<section class="lh-latest"><h3>📚 Los últimos en llegar</h3><div class="lh-covers">${latest.map((b) => `<button type="button" class="lh-cover" data-home-book="${esc(b.id)}" title="${esc(b.title)}">${coverHtml(b.cover_url, b.title)}<span>${esc(b.title)}</span></button>`).join('')}</div></section>` : ''}`;
+  }
+  function bindHome() {
+    $('#homeGrid').addEventListener('click', (e) => {
+      const go = e.target.closest('[data-home-go]');
+      if (go) {
+        const page = go.dataset.homeGo;
+        if (page === 'pending' && go.dataset.homePerson) { S.pendPerson = go.dataset.homePerson; S.pendMore = {}; }
+        if (page === 'add') resetForm();
+        if (page === 'recommend') resetRecommend();
+        showPage(page);
+        return;
+      }
+      const b = e.target.closest('[data-home-book]');
+      if (b) openBookDetail(b.dataset.homeBook);
+    });
+    window.addEventListener('hogar-user', () => { if (S.page === 'home') renderHome(); });
+  }
 
   /* =================================================================
      6. EXPLORAR LA BIBLIOTECA
@@ -4382,6 +4456,7 @@
     bindRatings();
     bindCalendar();
     bindPending();
+    bindHome();
     bindNames();
     bindLoans();
     bindStats();
@@ -4392,6 +4467,14 @@
     // Desde un aviso: libros/#loans, libros/#pending…
     const deep = decodeURIComponent(location.hash.replace(/^#/, ''));
     if (deep && document.getElementById(deep)?.classList.contains('page')) showPage(deep);
+    else PAGE_RENDER[S.page]?.();
+    // Botón «atrás» del móvil: vuelve a la pantalla anterior y avisa antes de salir.
+    const initBack = () => window.HogarBack?.init({
+      appName: 'la biblioteca',
+      getPage: () => S.page,
+      showPage: (id) => { if (document.getElementById(id)?.classList.contains('page')) showPage(id); }
+    });
+    if (window.HogarBack) initBack(); else window.addEventListener('load', initBack, { once: true });
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => navigator.serviceWorker.register('../service-worker.js', { scope: '../' })
         .then((reg) => reg.update().catch(() => {}))

@@ -1,5 +1,10 @@
 # Registro de archivos modificados y añadidos
 
+## Versión 20 · 10/11/2026
+
+- **Inicio en la discoteca y en la biblioteca**: primera pantalla al entrar, con un resumen de todo (colección, pendientes, préstamos y solicitudes, deseos, valoraciones, números, últimos en llegar) y botones a cada sección. `discos-extra.js`, `libros/app.js`, `libros/index.html`, `libros/styles.css`.
+- **Botón «atrás» del móvil** (`hogar-back.js`, en las tres aplicaciones): cierra primero la ventana abierta y vuelve a la pantalla anterior; antes de salir avisa abajo en gris «Pulsa otra vez atrás para salir». `index.html`, `compra/index.html`, `compra/js/app.js` (1.5), `service-worker.js` (caché `hogar-v20-20261110`), pruebas.
+
 ## Versión 19 · 08/11/2026
 
 - **Recomendar desde la ficha**: botón 💌 junto a editar y eliminar en la ficha de cada disco y de cada libro (en los libros, junto a calendario y valorar; los botones bajan de línea si no caben). Pregunta a quién y quién lo recomienda, lo guarda y abre «Álbumes pendientes» o «Aventuras pendientes» de esa persona. `discos-extra.js`, `libros/app.js`, `libros/index.html`, `libros/styles.css`, `service-worker.js` (caché `hogar-v19-20261108`).

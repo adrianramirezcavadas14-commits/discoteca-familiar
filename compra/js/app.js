@@ -310,6 +310,10 @@ async function boot() {
   try { await loadLocal(); await loadPlansLocal(); } catch (e) { console.warn('Sin caché local', e); }
   updateNet();
   connect();
+  // Botón «atrás» del móvil: las pantallas ya van por la dirección (#lista, #compra…); aquí se añade
+  // que atrás cierre la ventana abierta y que avise antes de salir de la despensa.
+  const initBack = () => window.HogarBack?.init({ appName: 'la despensa', mode: 'hash', getPage: () => location.hash });
+  if (window.HogarBack) initBack(); else window.addEventListener('load', initBack, { once: true });
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('../service-worker.js', { scope: '../' })
       .then((reg) => reg.update().catch(() => {}))

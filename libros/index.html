@@ -12,7 +12,7 @@
 <link rel="manifest" href="../manifest.webmanifest">
 <link rel="icon" href="../icons/icon-192.png">
 <link rel="apple-touch-icon" href="../icons/icon-192.png">
-<link rel="stylesheet" href="./styles.css?v=16">
+<link rel="stylesheet" href="./styles.css?v=17">
 </head>
 <body>
 
@@ -47,8 +47,9 @@
       <button class="close" id="close" type="button" aria-label="Cerrar menú"><span aria-hidden="true"></span></button>
     </div>
     <nav class="drawer-nav">
+      <button class="navbtn active" type="button" data-page="home"><span class="nicon">🏠</span><span><b>Inicio</b><small>La biblioteca de un vistazo</small></span></button>
       <button class="navbtn" type="button" data-page="add"><span class="nicon">➕</span><span><b>Sumar un libro</b><small>Una nueva historia para la familia</small></span></button>
-      <button class="navbtn active" type="button" data-page="search"><span class="nicon">🔎</span><span><b>Explorar la biblioteca</b><small>Encuentra cualquier libro en un momento</small></span></button>
+      <button class="navbtn" type="button" data-page="search"><span class="nicon">🔎</span><span><b>Explorar la biblioteca</b><small>Encuentra cualquier libro en un momento</small></span></button>
       <button class="navbtn" type="button" data-page="recommend"><span class="nicon">🎲</span><span><b>¿Qué leemos hoy?</b><small>Deja que la biblioteca te sorprenda</small></span></button>
       <button class="navbtn" type="button" data-page="wishlist"><span class="nicon">✨</span><span><b>Libros soñados</b><small>Ideas para comprar o regalar</small></span></button>
       <button class="navbtn" type="button" data-page="ratings"><span class="nicon">⭐</span><span><b>Califica tu viaje</b><small>Puntúa y recuerda tus lecturas</small></span></button>
@@ -64,7 +65,13 @@
 <main class="wrap">
 
   <!-- ===================== EXPLORAR LA BIBLIOTECA ===================== -->
-  <section class="page active" id="search">
+  <!-- ===================== INICIO ===================== -->
+  <section class="page active" id="home">
+    <div class="hero"><div><h2 id="homeHello">La biblioteca de un vistazo</h2><p>Lo que se está leyendo, lo que espera su turno, los préstamos y todo lo demás, a un toque.</p></div></div>
+    <div id="homeGrid"></div>
+  </section>
+
+  <section class="page" id="search">
     <div class="hero">
       <div><h2>¿Qué buscamos hoy?</h2><p>Busca por título, autor, ISBN, editorial o género.</p></div>
       <div class="count-row">
@@ -463,7 +470,7 @@
 
 <!-- Supabase y el lector de códigos se cargan desde app.js (con CDN alternativo y tiempo máximo) para que la pantalla de carga nunca se quede en 0 %. -->
 <script defer src="./supabase-config.js"></script>
-<script defer src="./app.js?v=17"></script>
+<script defer src="./app.js?v=18"></script>
 <script>
   // Red de seguridad: si app.js no llega a arrancar (sin cobertura), se ofrece recargar en vez de quedarse en 0 %.
   setTimeout(function () {
@@ -477,6 +484,6 @@
     c.onclick = function () { location.href = '../index.html'; };
   }, 20000);
 </script>
-<script defer src="../hogar-user.js?v=1"></script><script defer src="../buzon.js?v=4"></script>
+<script defer src="../hogar-user.js?v=1"></script><script defer src="../hogar-back.js?v=1"></script><script defer src="../buzon.js?v=4"></script>
 </body>
 </html>
